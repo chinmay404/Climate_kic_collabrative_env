@@ -542,8 +542,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const rolePrefix = `You are acting as ${effectiveRole}. Respond in that voice.\n\n`;
-    const userPrefix = `[User: ${senderName}] `;
+    const rolePrefix = `[RESPOND AS: ${effectiveRole}]\n`;
+    const userPrefix = `User question: `;
 
     await setRoomAiThinking(roomId, true);
     try {
