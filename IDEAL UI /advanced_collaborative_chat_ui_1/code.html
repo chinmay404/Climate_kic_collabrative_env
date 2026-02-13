@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Climate Sandbox: Collaborative Workspace</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: "#1e293b",
+                            900: "#0f172a",
+                            950: "#020617",
+                        },
+                        sage: {
+                            50: "#f4f7f5",
+                            100: "#e3ebe5",
+                            200: "#c5d8cc",
+                            500: "#6b9a7e",
+                            700: "#4a6b57",
+                            900: "#1f2e25",
+                        },
+                        navy: {
+                            50: "#f0f4f8",
+                            100: "#d9e2ec",
+                            700: "#334e68",
+                            800: "#243b53",
+                            900: "#102a43",
+                        },
+                        primary: "#6b9a7e", // Sage-500
+                        "primary-hover": "#4a6b57",
+                        "background-light": "#f8fafc", // Slate-50
+                        "background-dark": "#0f172a", // Slate-900
+                        "card-light": "#ffffff",
+                        "card-dark": "#1e293b", // Slate-800
+                        "text-light": "#334155",
+                        "text-dark": "#f1f5f9",
+                        "muted-light": "#64748b",
+                        "muted-dark": "#94a3b8",
+                        "onyx": "#6366f1", // Indigo for Onyx
+                        "narrator": "#059669", // Emerald for Narrator
+                        "system": "#ef4444", // Red for warnings
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                        mono: ["JetBrains Mono", "monospace"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'float': '0 8px 30px -4px rgba(0, 0, 0, 0.1)',
+                    }
+                },
+            },
+        };
+    </script>
+<style type="text/tailwindcss">
+        @layer utilities {
+            .scrollbar-hide::-webkit-scrollbar {
+                display: none;
+            }
+            .scrollbar-hide {
+                -ms-overflow-style: none;
+                scrollbar-width: none;
+            }
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background-color: rgba(148, 163, 184, 0.4);
+            border-radius: 20px;
+        }
+        .chat-connector {
+            position: absolute;
+            left: 28px;
+            top: 48px;
+            bottom: -24px;
+            width: 2px;
+            z-index: 0;
+            @apply bg-slate-200 dark:bg-slate-700;
+        }
+        .typing-pip {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-background-light dark:bg-background-dark font-sans h-screen flex flex-col overflow-hidden text-text-light dark:text-text-dark transition-colors duration-200">
+<header class="bg-card-light dark:bg-card-dark border-b border-slate-200 dark:border-slate-800 h-16 shrink-0 flex items-center justify-between px-6 z-20 shadow-sm relative">
+<div class="flex items-center gap-6">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-navy-900 dark:bg-navy-800 text-white flex items-center justify-center shadow-sm">
+<span class="material-icons-round text-lg">science</span>
+</div>
+<div>
+<h1 class="font-bold text-slate-800 dark:text-slate-100 text-sm leading-tight">Climate Sandbox</h1>
+<div class="flex items-center gap-2">
+<span class="text-[10px] font-semibold tracking-wider text-muted-light dark:text-muted-dark uppercase">Valle Verde Simulation</span>
+<span class="w-1 h-1 rounded-full bg-slate-300 dark:bg-slate-600"></span>
+<span class="text-[10px] font-mono text-muted-light dark:text-muted-dark">ID: 075e...763e</span>
+</div>
+</div>
+</div>
+<div class="hidden md:flex items-center gap-1 pl-6 border-l border-slate-200 dark:border-slate-700 h-8">
+<div class="flex -space-x-2 mr-2">
+<div class="w-6 h-6 rounded-full bg-indigo-500 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title="You">ME</div>
+<div class="w-6 h-6 rounded-full bg-emerald-600 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title="The Farmer">F</div>
+<div class="w-6 h-6 rounded-full bg-purple-600 border-2 border-white dark:border-slate-800 flex items-center justify-center text-[10px] text-white font-bold" title="Policymaker">P</div>
+</div>
+<span class="text-xs text-muted-light dark:text-muted-dark">3 Active</span>
+<div class="flex items-center gap-1 ml-3 px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800">
+<span class="w-1.5 h-1.5 rounded-full bg-slate-400 typing-pip"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-slate-400 typing-pip delay-75"></span>
+<span class="w-1.5 h-1.5 rounded-full bg-slate-400 typing-pip delay-150"></span>
+<span class="text-[10px] text-muted-light dark:text-muted-dark ml-1">Policymaker typing...</span>
+</div>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<button class="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-navy-900 dark:hover:text-white transition-colors bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md shadow-sm">
+<span class="material-icons-round text-sm">tune</span>
+            Settings
+        </button>
+<button class="bg-navy-900 hover:bg-navy-800 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm flex items-center gap-2 border border-navy-900">
+<span class="material-icons-round text-sm">logout</span>
+            Exit Sim
+        </button>
+<button class="p-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 transition-colors" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-icons-round dark:hidden text-lg">dark_mode</span>
+<span class="material-icons-round hidden dark:block text-lg">light_mode</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<main class="flex-1 flex flex-col relative bg-slate-50/50 dark:bg-[#0b1120]">
+<div class="flex-1 overflow-y-auto p-6 md:p-8 space-y-10 relative" id="chat-container">
+<div class="group flex justify-end">
+<div class="flex flex-col items-end max-w-2xl w-full">
+<div class="flex items-center gap-2 mb-2 px-1">
+<span class="text-xs font-medium text-slate-500 dark:text-slate-400">Addressed to:</span>
+<div class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800">
+<span class="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+<span class="text-xs font-bold text-indigo-700 dark:text-indigo-300">Onyx AI</span>
+</div>
+<span class="text-[10px] text-slate-400 ml-2">10:41 AM</span>
+</div>
+<div class="bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-100 p-5 rounded-2xl rounded-tr-sm shadow-soft border border-slate-200 dark:border-slate-700 relative">
+<p class="leading-relaxed">Can you clarify the role of the narrator in this simulation? I'm trying to figure out if I can override the weather events.</p>
+<div class="absolute -right-[1px] top-[14px] w-2 h-2 bg-white dark:bg-slate-800 border-t border-r border-slate-200 dark:border-slate-700 rotate-45 transform translate-x-1/2"></div>
+</div>
+<div class="flex items-center justify-end gap-2 mt-2 px-1">
+<div class="w-5 h-5 rounded-full bg-indigo-600 flex items-center justify-center text-[8px] text-white font-bold">ME</div>
+<span class="text-xs font-medium text-slate-600 dark:text-slate-300">You</span>
+</div>
+</div>
+</div>
+<div class="group relative pl-4">
+<div class="chat-connector group-last:bg-gradient-to-b group-last:from-slate-200 group-last:to-transparent dark:group-last:from-slate-700"></div>
+<div class="flex gap-4">
+<div class="flex flex-col items-center gap-2 z-10">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-lg shadow-indigo-500/20 border border-indigo-400/20">
+<span class="material-icons-round text-lg">smart_toy</span>
+</div>
+</div>
+<div class="flex flex-col max-w-3xl w-full">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="font-bold text-sm text-slate-800 dark:text-slate-200">Onyx AI</span>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">ASSISTANT</span>
+</div>
+<span class="text-[10px] text-slate-400">10:42 AM</span>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-xl rounded-tl-sm p-6 shadow-soft border border-slate-200 dark:border-slate-700/60 ring-1 ring-slate-900/5">
+<p class="text-slate-600 dark:text-slate-300 mb-5 leading-relaxed">
+                                I appreciate you asking for clarification. It sounds like an innovative approach to capacity building for Regional Managing Authorities. However, I notice that you've asked me to respond as the Narrator, but I should clarify my role:
+                            </p>
+<div class="bg-rose-50 dark:bg-rose-950/30 border border-rose-100 dark:border-rose-900/50 p-4 rounded-lg mb-2 flex gap-3">
+<div class="shrink-0 mt-0.5">
+<span class="material-icons-round text-rose-500">gpp_maybe</span>
+</div>
+<div>
+<h4 class="font-bold text-sm text-rose-800 dark:text-rose-300 mb-1">
+                                        Role Clarification
+                                    </h4>
+<p class="text-xs leading-relaxed text-rose-700 dark:text-rose-200/80">
+                                        I am the <strong class="font-semibold">Climate-KIC Assistant</strong>, not the Climate Sandbox Narrator BOT. While I can help refine the concept, I cannot directly operate as the Valle Verde narrator or modify simulation constraints like weather events.
+                                    </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="flex justify-center py-2">
+<div class="bg-slate-100 dark:bg-slate-800/80 backdrop-blur-sm rounded-full px-3 py-1 text-[10px] font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2 border border-slate-200 dark:border-slate-700">
+<span class="material-icons-round text-[12px]">sync</span>
+                    System Sync: Weather Module Updated
+                </div>
+</div>
+<div class="group relative pl-4 pb-32">
+<div class="flex gap-4">
+<div class="flex flex-col items-center gap-2 z-10">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 border border-emerald-400/20">
+<span class="material-icons-round text-lg">auto_stories</span>
+</div>
+</div>
+<div class="flex flex-col max-w-3xl w-full">
+<div class="flex items-center justify-between mb-2">
+<div class="flex items-center gap-2">
+<span class="font-bold text-sm text-slate-800 dark:text-slate-200">Narrator Bot</span>
+<span class="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">RP MODE</span>
+</div>
+<span class="text-[10px] text-slate-400">10:45 AM</span>
+</div>
+<div class="bg-card-light dark:bg-card-dark rounded-xl rounded-tl-sm p-6 shadow-soft border border-slate-200 dark:border-slate-700/60 ring-1 ring-slate-900/5">
+<div class="flex items-center gap-3 mb-4 pb-4 border-b border-slate-100 dark:border-slate-700/50">
+<span class="text-xl">🤔</span>
+<h3 class="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wide">Clarifying Question</h3>
+</div>
+<p class="text-slate-600 dark:text-slate-300 mb-4 text-sm">
+                                To confirm your intent regarding the weather override, are you acting as the "Deus Ex Machina" admin for this session, or as a character within the simulation attempting a geo-engineering project?
+                            </p>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-2">
+<button class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 transition-all text-left group/btn">
+<span class="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-500 flex items-center justify-center group-hover/btn:border-emerald-500 transition-colors">
+<span class="w-2 h-2 rounded-full bg-emerald-500 opacity-0 group-hover/btn:opacity-100 transition-opacity"></span>
+</span>
+<span class="text-xs font-medium text-slate-700 dark:text-slate-300">Admin Override (OOC)</span>
+</button>
+<button class="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 hover:border-emerald-500 dark:hover:border-emerald-500 bg-slate-50 dark:bg-slate-800/50 hover:bg-white dark:hover:bg-slate-800 transition-all text-left group/btn">
+<span class="w-4 h-4 rounded-full border border-slate-300 dark:border-slate-500 flex items-center justify-center group-hover/btn:border-emerald-500 transition-colors">
+<span class="w-2 h-2 rounded-full bg-emerald-500 opacity-0 group-hover/btn:opacity-100 transition-opacity"></span>
+</span>
+<span class="text-xs font-medium text-slate-700 dark:text-slate-300">Geo-engineering Project (IC)</span>
+</button>
+</div>
+</div>
+<div class="flex gap-4 mt-2 px-1">
+<button class="text-[10px] flex items-center gap-1.5 text-slate-400 hover:text-emerald-600 transition-colors">
+<span class="material-icons-round text-sm">thumb_up</span>
+</button>
+<button class="text-[10px] flex items-center gap-1.5 text-slate-400 hover:text-rose-500 transition-colors">
+<span class="material-icons-round text-sm">flag</span>
+</button>
+<button class="text-[10px] flex items-center gap-1.5 text-slate-400 hover:text-indigo-500 transition-colors ml-auto">
+<span class="material-icons-round text-sm">replay</span>
+                                Regenerate
+                            </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="absolute bottom-6 left-6 right-6 z-30">
+<div class="max-w-4xl mx-auto">
+<div class="bg-white/90 dark:bg-slate-800/90 backdrop-blur-md rounded-2xl shadow-float border border-slate-200 dark:border-slate-700 p-1.5 flex items-end gap-2 relative ring-1 ring-slate-900/5">
+<div class="relative group h-10 flex items-center shrink-0">
+<button class="flex items-center gap-2 pl-2 pr-2 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-900/70 rounded-xl transition-colors h-full border border-slate-200 dark:border-slate-700">
+<div class="w-5 h-5 rounded-md bg-emerald-500 flex items-center justify-center text-white text-[10px]">
+<span class="material-icons-round text-xs">auto_stories</span>
+</div>
+<div class="flex flex-col items-start mr-1">
+<span class="text-[10px] text-slate-400 uppercase leading-none mb-0.5">Addressing</span>
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-200 leading-none">Narrator</span>
+</div>
+<span class="material-icons-round text-sm text-slate-400">expand_more</span>
+</button>
+</div>
+<textarea class="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 resize-none py-2.5 max-h-32 text-sm" placeholder="Ask a question or declare an action..." rows="1" style="min-height: 40px;"></textarea>
+<div class="flex items-center gap-1 h-10 pb-0">
+<button class="w-8 h-8 flex items-center justify-center text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors" title="Attach Context">
+<span class="material-icons-round text-lg transform rotate-45">attach_file</span>
+</button>
+<button class="h-8 w-8 bg-navy-900 hover:bg-navy-800 text-white rounded-lg shadow-md flex items-center justify-center transition-all hover:scale-105 active:scale-95 ml-1">
+<span class="material-icons-round text-sm">send</span>
+</button>
+</div>
+</div>
+<div class="text-center mt-2">
+<p class="text-[10px] text-slate-400 dark:text-slate-500">AI can make mistakes. Verify critical climate data.</p>
+</div>
+</div>
+</div>
+</main>
+<aside class="w-80 bg-white dark:bg-[#111827] border-l border-slate-200 dark:border-slate-800 flex flex-col shrink-0 z-10 hidden lg:flex">
+<div class="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50">
+<h2 class="font-bold text-slate-700 dark:text-slate-200 text-xs uppercase tracking-wider flex items-center gap-2">
+<span class="material-icons-round text-sm text-indigo-500">dataset</span>
+                Simulation State
+            </h2>
+</div>
+<div class="flex-1 overflow-y-auto p-4 space-y-6">
+<section>
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Active Contracts</h3>
+<button class="text-indigo-600 hover:text-indigo-700 text-[10px] font-medium">+ New</button>
+</div>
+<div class="space-y-3">
+<div class="bg-card-light dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 relative overflow-hidden group hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors cursor-pointer">
+<div class="absolute top-0 left-0 bottom-0 w-1 bg-emerald-500"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-200">Water Usage Pact</span>
+<span class="text-[10px] bg-emerald-100 dark:bg-emerald-900 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">Active</span>
+</div>
+<p class="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">Agreement between Farmers and City Council to reduce usage by 15%.</p>
+<div class="mt-2 flex -space-x-1.5">
+<div class="w-4 h-4 rounded-full bg-emerald-600 border border-white dark:border-slate-800"></div>
+<div class="w-4 h-4 rounded-full bg-purple-600 border border-white dark:border-slate-800"></div>
+</div>
+</div>
+<div class="bg-card-light dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-lg p-3 relative overflow-hidden group hover:border-yellow-300 dark:hover:border-yellow-700 transition-colors cursor-pointer">
+<div class="absolute top-0 left-0 bottom-0 w-1 bg-yellow-500"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-xs font-semibold text-slate-700 dark:text-slate-200">Solar Subsidy</span>
+<span class="text-[10px] bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-400 px-1.5 py-0.5 rounded">Draft</span>
+</div>
+<p class="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2">Proposed allocation of budget for residential solar panels.</p>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-3">
+<h3 class="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase">Verified Facts</h3>
+</div>
+<div class="space-y-2">
+<div class="flex gap-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50">
+<span class="material-icons-round text-sm text-slate-400 mt-0.5">verified</span>
+<div>
+<p class="text-xs text-slate-700 dark:text-slate-300 font-medium">Reservoir Level: 42%</p>
+<p class="text-[10px] text-slate-400">Updated 2m ago by Narrator</p>
+</div>
+</div>
+<div class="flex gap-2 p-2 rounded hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors border border-transparent hover:border-slate-100 dark:hover:border-slate-700/50">
+<span class="material-icons-round text-sm text-slate-400 mt-0.5">verified</span>
+<div>
+<p class="text-xs text-slate-700 dark:text-slate-300 font-medium">Population: 12,500</p>
+<p class="text-[10px] text-slate-400">Census Data (Sim Start)</p>
+</div>
+</div>
+</div>
+</section>
+<section class="pt-4 border-t border-slate-100 dark:border-slate-800">
+<button class="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white py-2 rounded-lg text-xs font-medium transition-colors shadow-sm mb-2">
+<span class="material-icons-round text-sm">how_to_vote</span>
+                    New Vote
+                </button>
+</section>
+</div>
+</aside>
+</div>
+<div class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm hidden" id="vote-modal">
+<div class="bg-white dark:bg-slate-800 w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-700 m-4">
+<div class="px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+<h3 class="font-bold text-slate-800 dark:text-slate-100 text-lg">Create New Vote</h3>
+<button class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+<span class="material-icons-round">close</span>
+</button>
+</div>
+<div class="p-6 space-y-4">
+<div>
+<label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Question / Title</label>
+<input class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="What should we decide on?" type="text"/>
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Description (Optional)</label>
+<textarea class="w-full rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500 resize-none h-20" placeholder="Add more context..."></textarea>
+</div>
+<div>
+<label class="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">Options</label>
+<div class="space-y-2">
+<div class="flex gap-2">
+<div class="h-10 w-8 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-500 font-mono text-xs">A</div>
+<input class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Option 1" type="text"/>
+</div>
+<div class="flex gap-2">
+<div class="h-10 w-8 bg-slate-100 dark:bg-slate-700 rounded-lg flex items-center justify-center text-slate-500 font-mono text-xs">B</div>
+<input class="flex-1 rounded-lg border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900/50 text-slate-800 dark:text-slate-200 text-sm focus:ring-emerald-500 focus:border-emerald-500" placeholder="Option 2" type="text"/>
+</div>
+</div>
+<button class="mt-2 text-xs font-medium text-emerald-600 hover:text-emerald-700 flex items-center gap-1">
+<span class="material-icons-round text-sm">add</span> Add another option
+                 </button>
+</div>
+</div>
+<div class="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-3">
+<button class="px-4 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors">Cancel</button>
+<button class="px-4 py-2 text-sm font-medium text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-sm transition-colors">Create Vote</button>
+</div>
+</div>
+</div>
+
+</body></html>

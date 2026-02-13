@@ -1,0 +1,36 @@
+{
+  "name": "collabrative_env",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:migrate:supabase": "psql \"$DATABASE_URL\" -f supabase/migrations/202602130001_init.sql",
+    "db:migrate:supabase:auth": "psql \"$DATABASE_URL\" -f supabase/migrations/202602130002_auth_and_room_runtime.sql",
+    "db:migrate:supabase:all": "psql \"$DATABASE_URL\" -f supabase/migrations/202602130001_init.sql && psql \"$DATABASE_URL\" -f supabase/migrations/202602130002_auth_and_room_runtime.sql"
+  },
+  "dependencies": {
+    "@tailwindcss/typography": "^0.5.19",
+    "next": "16.1.4",
+    "pg": "^8.18.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/pg": "^8.16.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.4",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

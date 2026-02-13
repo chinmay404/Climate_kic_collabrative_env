@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Climate Sandbox: Login</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,typography,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet"/>
+<script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            850: "#1e293b",
+                            900: "#0f172a",
+                            950: "#020617",
+                        },
+                        sage: {
+                            50: "#f4f7f5",
+                            100: "#e3ebe5",
+                            200: "#c5d8cc",
+                            500: "#6b9a7e",
+                            700: "#4a6b57",
+                            900: "#1f2e25",
+                        },
+                        navy: {
+                            50: "#f0f4f8",
+                            100: "#d9e2ec",
+                            700: "#334e68",
+                            800: "#243b53",
+                            900: "#102a43",
+                        },
+                        primary: "#6b9a7e", // Sage-500
+                        "primary-hover": "#4a6b57",
+                        "background-light": "#f8fafc", // Slate-50
+                        "background-dark": "#0f172a", // Slate-900
+                        "card-light": "#ffffff",
+                        "card-dark": "#1e293b", // Slate-800
+                        "text-light": "#334155",
+                        "text-dark": "#f1f5f9",
+                        "muted-light": "#64748b",
+                        "muted-dark": "#94a3b8",
+                    },
+                    fontFamily: {
+                        sans: ["Inter", "sans-serif"],
+                        mono: ["JetBrains Mono", "monospace"],
+                    },
+                    boxShadow: {
+                        'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+                        'float': '0 8px 30px -4px rgba(0, 0, 0, 0.1)',
+                    }
+                },
+            },
+        };
+    </script>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 font-sans min-h-screen flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 transition-colors duration-200 relative overflow-hidden">
+<div class="absolute inset-0 z-0 pointer-events-none overflow-hidden">
+<div class="absolute top-0 left-1/4 w-96 h-96 bg-sage-200/20 rounded-full blur-3xl -translate-y-1/2"></div>
+<div class="absolute bottom-0 right-1/4 w-96 h-96 bg-navy-100/30 rounded-full blur-3xl translate-y-1/2"></div>
+</div>
+<div class="w-full max-w-md p-6 z-10 relative">
+<div class="flex flex-col items-center mb-8">
+<div class="w-12 h-12 rounded-xl bg-navy-900 dark:bg-navy-800 text-white flex items-center justify-center shadow-lg mb-4">
+<span class="material-icons-round text-2xl">science</span>
+</div>
+<h1 class="text-xl font-bold text-slate-900 dark:text-white tracking-tight">Climate Sandbox</h1>
+<p class="text-sm text-slate-500 dark:text-slate-400 mt-2 text-center">Collaborative policy simulation platform</p>
+</div>
+<div class="bg-white dark:bg-slate-800 rounded-2xl shadow-float border border-slate-200 dark:border-slate-700 p-8">
+<form action="#" class="space-y-5" method="POST" onsubmit="event.preventDefault();">
+<div>
+<label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2" for="email">
+                        Email Address
+                    </label>
+<div class="relative">
+<input autocomplete="email" class="block w-full rounded-lg border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-sm focus:border-navy-700 focus:ring-navy-700 sm:text-sm pl-10 py-2.5 transition-colors" id="email" name="email" placeholder="researcher@institute.org" required="" type="email"/>
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons-round text-slate-400 text-lg">mail</span>
+</div>
+</div>
+</div>
+<div>
+<label class="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2" for="password">
+                        Password
+                    </label>
+<div class="relative">
+<input autocomplete="current-password" class="block w-full rounded-lg border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-900/50 text-slate-900 dark:text-white shadow-sm focus:border-navy-700 focus:ring-navy-700 sm:text-sm pl-10 py-2.5 transition-colors" id="password" name="password" placeholder="••••••••" required="" type="password"/>
+<div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+<span class="material-icons-round text-slate-400 text-lg">lock</span>
+</div>
+</div>
+</div>
+<div class="flex items-center justify-between text-sm">
+<div class="flex items-center">
+<input class="h-4 w-4 rounded border-slate-300 text-navy-800 focus:ring-navy-700" id="remember-me" name="remember-me" type="checkbox"/>
+<label class="ml-2 block text-slate-600 dark:text-slate-400 text-xs" for="remember-me">Remember me</label>
+</div>
+<div class="text-xs">
+<a class="font-medium text-navy-700 dark:text-navy-100 hover:text-navy-900 dark:hover:text-white transition-colors" href="#">Forgot password?</a>
+</div>
+</div>
+<div>
+<button class="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition-all duration-200 transform active:scale-[0.98]" type="submit">
+                        Sign In
+                    </button>
+</div>
+</form>
+<div class="mt-6">
+<div class="relative">
+<div class="absolute inset-0 flex items-center">
+<div class="w-full border-t border-slate-200 dark:border-slate-700"></div>
+</div>
+<div class="relative flex justify-center text-sm">
+<span class="px-2 bg-white dark:bg-slate-800 text-slate-400 text-xs">or continue with</span>
+</div>
+</div>
+<div class="mt-6 grid grid-cols-1 gap-3">
+<button class="w-full inline-flex justify-center items-center py-2 px-4 border border-slate-200 dark:border-slate-600 rounded-lg shadow-sm bg-white dark:bg-slate-700 text-sm font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors">
+<span class="material-icons-round text-lg mr-2 text-slate-500">domain</span>
+                        Organization Login (SSO)
+                    </button>
+</div>
+</div>
+</div>
+<p class="mt-8 text-center text-xs text-slate-400">
+            © 2024 Climate Sandbox Initiative. <br class="hidden sm:block"/> Authorized access only.
+        </p>
+</div>
+
+</body></html>
