@@ -13,7 +13,7 @@ function getDatabaseUrl(): string {
 function shouldUseSsl(databaseUrl: string): boolean {
   if (process.env.DB_SSL === 'false') return false;
   if (process.env.DB_SSL === 'true') return true;
-  return databaseUrl.includes('supabase.co');
+  return databaseUrl.includes('supabase.co') || databaseUrl.includes('supabase.com');
 }
 
 function createPool(): Pool {

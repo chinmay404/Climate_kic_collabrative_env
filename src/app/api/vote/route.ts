@@ -7,6 +7,7 @@ import {
   closeProposalById,
   createAuditLog,
   createProposalWithOptions,
+  getRoomMemberRole,
   getRoomRuntime,
   getVoteResultsForProposal,
   listProposalsByRoom,
@@ -198,7 +199,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });
   }
 
-  await upsertRoomMember({ roomId, userId: auth.context.user.id, role: 'member' });
+  await upsertRoomMember({ roomId, userId: auth.context.user.id });
   await touchRoomMemberPresence(roomId, auth.context.user.id);
 
   if (proposalId) {
@@ -240,10 +241,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    await upsertRoomMember({ roomId, userId: auth.context.user.id, role: 'member' });
+    await upsertRoomMember({ roomId, userId: auth.context.user.id });
     await touchRoomMemberPresence(roomId, auth.context.user.id);
+    const role = await getRoomMemberRole(roomId, auth.context.user.id);
 
     if (action === 'create') {
+      if (role !== 'admin') {
+        return NextResponse.json({ error: 'Only room admins can create votes' }, { status: 403 });
+      }
+
       const title = typeof body?.title === 'string' ? body.title.trim() : '';
       const description = typeof body?.description === 'string' ? body.description.trim() : '';
       const optionsRaw = Array.isArray(body?.options) ? body.options : [];
@@ -324,6 +330,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'close') {
+      if (role !== 'admin') {
+        return NextResponse.json({ error: 'Only room admins can close votes' }, { status: 403 });
+      }
+
       const proposalId = typeof body?.proposalId === 'string' ? body.proposalId : '';
       const requestAIResponse = Boolean(body?.requestAIResponse);
 

@@ -81,6 +81,9 @@ export default function ChatPage() {
   const [roomId, setRoomId] = useState<string>('');
   const [joined, setJoined] = useState(false);
   const [username, setUsername] = useState('');
+  const [roomTitle, setRoomTitle] = useState('Valle Verde Simulation');
+  const [roomRole, setRoomRole] = useState<'admin' | 'member'>('member');
+  const [chatMode, setChatMode] = useState<'ai' | 'room'>('ai');
 
   // Join form inputs
   const [joinRoomIdInput, setJoinRoomIdInput] = useState('');
@@ -105,6 +108,7 @@ export default function ChatPage() {
   const [showSidebar, setShowSidebar] = useState(false);
   const [copiedRoomId, setCopiedRoomId] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
+  const [renamingRoom, setRenamingRoom] = useState(false);
   const [myRooms, setMyRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomLogs, setRoomLogs] = useState<RoomLog[]>([]);
@@ -122,6 +126,9 @@ export default function ChatPage() {
     setParticipants([]);
     setMyRooms([]);
     setRoomLogs([]);
+    setRoomTitle('Valle Verde Simulation');
+    setRoomRole('member');
+    setChatMode('ai');
     setJoinPasswordInput('');
     setIsLoggedIn(false);
     setAuthError('Session expired. Please sign in again.');
@@ -210,9 +217,9 @@ export default function ChatPage() {
         const data = await res.json();
         const user = data?.user;
         const identity =
-          (typeof user?.displayName === 'string' && user.displayName.trim()) ||
           (typeof user?.email === 'string' && user.email.trim()) ||
           (typeof user?.username === 'string' && user.username.trim()) ||
+          (typeof user?.displayName === 'string' && user.displayName.trim()) ||
           '';
 
         if (!cancelled && identity) {
@@ -269,6 +276,29 @@ export default function ChatPage() {
       .catch(console.error);
   }, [roomId, username, handleSessionExpired]);
 
+  const leaveRoom = useCallback((overrideRoomId?: string) => {
+    const resolvedRoomId = overrideRoomId || roomId;
+    if (!resolvedRoomId) return;
+    const payload = JSON.stringify({ action: 'leave', roomId: resolvedRoomId });
+
+    try {
+      if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+        const blob = new Blob([payload], { type: 'application/json' });
+        navigator.sendBeacon('/api/chat', blob);
+        return;
+      }
+    } catch {
+      // fall through to fetch
+    }
+
+    fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: payload,
+      keepalive: true,
+    }).catch(() => undefined);
+  }, [roomId]);
+
   const fetchMessages = useCallback(async () => {
     if (!roomId) return;
     try {
@@ -282,6 +312,12 @@ export default function ChatPage() {
         const serverMessages = data.messages || [];
         setAiThinking(data.aiThinking || false);
         setParticipants(Array.isArray(data.participants) ? data.participants : []);
+        if (typeof data.roomTitle === 'string' && data.roomTitle.trim()) {
+          setRoomTitle(data.roomTitle);
+        }
+        if (data.roomRole === 'admin' || data.roomRole === 'member') {
+          setRoomRole(data.roomRole);
+        }
         const now = Date.now();
         const activeTypers: Record<string, number> = {};
         const rawTypers = data.typingUsers || {};
@@ -354,6 +390,15 @@ export default function ChatPage() {
     const interval = setInterval(sendPresence, 15000);
     return () => clearInterval(interval);
   }, [joined, roomId, username, sendPresence]);
+
+  useEffect(() => {
+    if (!joined || !roomId) return;
+    const onBeforeUnload = () => leaveRoom(roomId);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+    };
+  }, [joined, roomId, leaveRoom]);
 
   useEffect(() => {
     if (!isLoggedIn || joined) return;
@@ -439,6 +484,9 @@ export default function ChatPage() {
         setMessages([]);
       }
       setRoomId(data.roomId);
+      setRoomTitle(typeof data.roomTitle === 'string' && data.roomTitle.trim() ? data.roomTitle : 'Valle Verde Simulation');
+      setRoomRole(data.roomRole === 'admin' ? 'admin' : 'member');
+      setChatMode('ai');
       setUsername(userToUse);
       setJoined(true);
       sendPresence(data.roomId, userToUse);
@@ -469,6 +517,9 @@ export default function ChatPage() {
       }
       if (res.ok) {
         setRoomId(roomToUse);
+        setRoomTitle('Valle Verde Simulation');
+        setRoomRole('member');
+        setChatMode('ai');
         setUsername(userToUse);
         setJoined(true);
         setLastError('');
@@ -488,10 +539,15 @@ export default function ChatPage() {
     setInput('');
     setLoading(true);
     try {
+      const payload =
+        chatMode === 'room'
+          ? { action: 'broadcast', content: userMsg, roomId }
+          : { content: userMsg, roomId, targetRole };
+
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: userMsg, roomId, sender: username, targetRole }),
+        body: JSON.stringify(payload),
       });
       if (res.status === 401) {
         handleSessionExpired();
@@ -523,6 +579,10 @@ export default function ChatPage() {
 
   // ─── Proposal/Voting ──────────────────────────────────────────────
   const handleCreateProposal = async () => {
+    if (roomRole !== 'admin') {
+      setLastError('Only room admins can create votes.');
+      return;
+    }
     if (!newProposalTitle.trim()) { alert('Please enter a proposal title'); return; }
     const validOptions = newProposalOptions.filter((o) => o.trim());
     if (validOptions.length < 2) { alert('Please provide at least 2 options'); return; }
@@ -578,6 +638,10 @@ export default function ChatPage() {
   };
 
   const handleCloseVoting = async (proposalId: string) => {
+    if (roomRole !== 'admin') {
+      setLastError('Only room admins can close votes.');
+      return;
+    }
     setClosingProposal(proposalId);
     try {
       const res = await fetch('/api/vote', {
@@ -638,9 +702,9 @@ export default function ChatPage() {
       }
 
       const identity =
-        (typeof data.user.displayName === 'string' && data.user.displayName.trim()) ||
         (typeof data.user.email === 'string' && data.user.email.trim()) ||
         (typeof data.user.username === 'string' && data.user.username.trim()) ||
+        (typeof data.user.displayName === 'string' && data.user.displayName.trim()) ||
         email;
 
       setUsername(identity);
@@ -656,6 +720,10 @@ export default function ChatPage() {
   };
 
   const handleLogout = async () => {
+    if (joined && roomId) {
+      leaveRoom(roomId);
+    }
+
     try {
       await fetch('/api/auth', {
         method: 'POST',
@@ -678,6 +746,45 @@ export default function ChatPage() {
     setRoomLogs([]);
     setAuthError('');
     setIsLoggedIn(false);
+  };
+
+  const handleRenameRoom = async () => {
+    if (!roomId || roomRole !== 'admin' || renamingRoom) {
+      return;
+    }
+
+    const nextTitle = window.prompt('Enter new room name', roomTitle)?.trim();
+    if (!nextTitle || nextTitle === roomTitle) return;
+
+    setRenamingRoom(true);
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: nextTitle }),
+      });
+
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setLastError(data?.error || 'Failed to rename room.');
+        return;
+      }
+
+      if (typeof data?.title === 'string' && data.title.trim()) {
+        setRoomTitle(data.title);
+      }
+      setLastError('');
+      fetchMyRooms();
+    } catch {
+      setLastError('Failed to rename room.');
+    } finally {
+      setRenamingRoom(false);
+    }
   };
 
   if (authLoading && !isLoggedIn) {
@@ -1120,6 +1227,18 @@ export default function ChatPage() {
             </div>
             <div>
               <h1 className="font-bold text-slate-800 text-sm leading-tight">Climate Sandbox</h1>
+              <div className="flex items-center gap-2 mt-0.5">
+                <span className="text-[11px] font-semibold text-slate-700 truncate max-w-[220px]">{roomTitle}</span>
+                {roomRole === 'admin' && (
+                  <button
+                    onClick={handleRenameRoom}
+                    disabled={renamingRoom}
+                    className="text-[10px] text-navy-700 hover:text-navy-900 disabled:text-slate-400 font-medium"
+                  >
+                    {renamingRoom ? 'Renaming...' : 'Rename'}
+                  </button>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] font-semibold tracking-wider text-muted-light uppercase">
                   Simulation Room
@@ -1194,12 +1313,16 @@ export default function ChatPage() {
           </button>
           <button
             onClick={() => {
+              leaveRoom(roomId);
               setJoined(false);
               setMessages([]);
               setRoomId('');
               setActiveProposals([]);
               setRoomLogs([]);
               setShowSidebar(false);
+              setRoomTitle('Valle Verde Simulation');
+              setRoomRole('member');
+              setChatMode('ai');
             }}
             className="bg-navy-900 hover:bg-navy-800 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm flex items-center gap-2 border border-navy-900"
           >
@@ -1225,7 +1348,7 @@ export default function ChatPage() {
         {/* ── Chat Area ───────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col relative bg-slate-50/30 chat-bg-pattern">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 relative pb-64" id="chat-container">
+          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 relative pb-8" id="chat-container">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full fade-in-up">
                 <div className="relative mb-6">
@@ -1398,23 +1521,23 @@ export default function ChatPage() {
             })}
 
             {/* Loading / AI Thinking */}
-            {(loading || aiThinking) && (
+            {(chatMode === 'ai' ? (loading || aiThinking) : loading) && (
               <div className="group relative">
                 <div className="flex gap-3">
                   <div className="shrink-0">
-                    <div className={`w-10 h-10 rounded-xl ${currentPersona.color} text-white flex items-center justify-center shadow-lg border border-white/10`}>
-                      <Icon name={currentPersona.icon} className="text-lg" />
+                    <div className={`w-10 h-10 rounded-xl ${chatMode === 'ai' ? currentPersona.color : 'bg-sage-700'} text-white flex items-center justify-center shadow-lg border border-white/10`}>
+                      <Icon name={chatMode === 'ai' ? currentPersona.icon : 'groups'} className="text-lg" />
                     </div>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-600 mb-1.5">{targetRole}</span>
+                    <span className="text-xs font-bold text-slate-600 mb-1.5">{chatMode === 'ai' ? targetRole : 'Room Chat'}</span>
                     <div className="bg-white rounded-xl rounded-tl-sm px-6 py-4 shadow-soft border border-slate-200 flex items-center gap-3">
                       <div className="flex gap-1.5 h-3 items-center">
                         <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
                         <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
                         <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce" />
                       </div>
-                      <span className="text-xs text-slate-400">is thinking...</span>
+                      <span className="text-xs text-slate-400">{chatMode === 'ai' ? 'is thinking...' : 'sending...'}</span>
                     </div>
                   </div>
                 </div>
@@ -1425,66 +1548,102 @@ export default function ChatPage() {
           </div>
 
           {/* ── Input Bar ─────────────────────────────────────────── */}
-          <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-8 pb-4 px-5">
+          <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70">
             <div className="max-w-4xl mx-auto">
               <form onSubmit={sendMessage}>
                 <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-shadow focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
-                  {/* Addressing selector */}
-                  <div className="relative h-10 flex items-center shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setShowAddressingDropdown(!showAddressingDropdown)}
-                      className={`flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-xl transition-all h-full border ${
-                        showAddressingDropdown
-                          ? 'bg-slate-200 border-slate-300'
-                          : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
-                      }`}
-                    >
-                      <div className={`w-5 h-5 rounded-md ${currentPersona.color} flex items-center justify-center text-white text-[10px] shadow-sm`}>
-                        <Icon name={currentPersona.icon} className="text-xs" />
-                      </div>
-                      <div className="flex flex-col items-start mr-0.5">
-                        <span className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider leading-none mb-0.5">To</span>
-                        <span className="text-xs font-bold text-slate-700 leading-none">{targetRole}</span>
-                      </div>
-                      <Icon name={showAddressingDropdown ? 'expand_less' : 'expand_more'} className="text-sm text-slate-400" />
-                    </button>
+                  <div className="shrink-0 flex flex-col gap-1.5">
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMode('ai');
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+                          chatMode === 'ai'
+                            ? 'bg-navy-900 text-white border-navy-900'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        AI Scene
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChatMode('room');
+                          setShowAddressingDropdown(false);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+                          chatMode === 'room'
+                            ? 'bg-sage-700 text-white border-sage-700'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        Room Chat
+                      </button>
+                    </div>
 
-                    {/* Dropdown */}
-                    {showAddressingDropdown && (
-                      <div className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-float border border-slate-200 py-1.5 w-60 z-50 fade-in-up">
-                        <div className="px-3 py-1.5 mb-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Address message to</span>
-                        </div>
-                        {personas.map((p) => (
-                          <button
-                            key={p.label}
-                            type="button"
-                            onClick={() => {
-                              setTargetRole(p.label);
-                              setShowAddressingDropdown(false);
-                            }}
-                            className={`w-full flex items-center gap-3 px-3 py-2 text-sm transition-all ${
-                              targetRole === p.label
-                                ? 'bg-sage-50 text-sage-800 font-semibold'
-                                : 'text-slate-600 hover:bg-slate-50'
-                            }`}
-                          >
-                            <div className={`w-7 h-7 rounded-lg ${p.color} flex items-center justify-center text-white shadow-sm`}>
-                              <Icon name={p.icon} className="text-sm" />
+                    {chatMode === 'ai' ? (
+                      <div className="relative h-10 flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => setShowAddressingDropdown(!showAddressingDropdown)}
+                          className={`flex items-center gap-2 pl-2 pr-2.5 py-1 rounded-xl transition-all h-full border ${
+                            showAddressingDropdown
+                              ? 'bg-slate-200 border-slate-300'
+                              : 'bg-slate-50 hover:bg-slate-100 border-slate-200'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded-md ${currentPersona.color} flex items-center justify-center text-white text-[10px] shadow-sm`}>
+                            <Icon name={currentPersona.icon} className="text-xs" />
+                          </div>
+                          <div className="flex flex-col items-start mr-0.5">
+                            <span className="text-[9px] text-slate-400 uppercase font-semibold tracking-wider leading-none mb-0.5">To</span>
+                            <span className="text-xs font-bold text-slate-700 leading-none">{targetRole}</span>
+                          </div>
+                          <Icon name={showAddressingDropdown ? 'expand_less' : 'expand_more'} className="text-sm text-slate-400" />
+                        </button>
+
+                        {showAddressingDropdown && (
+                          <div className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-float border border-slate-200 py-1.5 w-60 z-50 fade-in-up">
+                            <div className="px-3 py-1.5 mb-1">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Address message to</span>
                             </div>
-                            <span className="flex-1 text-left">{p.label}</span>
-                            {targetRole === p.label && (
-                              <Icon name="check_circle" className="text-base text-sage-600" />
-                            )}
-                          </button>
-                        ))}
+                            {personas.map((p) => (
+                              <button
+                                key={p.label}
+                                type="button"
+                                onClick={() => {
+                                  setTargetRole(p.label);
+                                  setShowAddressingDropdown(false);
+                                }}
+                                className={`w-full flex items-center gap-3 px-3 py-2 text-sm transition-all ${
+                                  targetRole === p.label
+                                    ? 'bg-sage-50 text-sage-800 font-semibold'
+                                    : 'text-slate-600 hover:bg-slate-50'
+                                }`}
+                              >
+                                <div className={`w-7 h-7 rounded-lg ${p.color} flex items-center justify-center text-white shadow-sm`}>
+                                  <Icon name={p.icon} className="text-sm" />
+                                </div>
+                                <span className="flex-1 text-left">{p.label}</span>
+                                {targetRole === p.label && (
+                                  <Icon name="check_circle" className="text-base text-sage-600" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center gap-2 text-xs font-semibold text-slate-700">
+                        <Icon name="groups" className="text-sm text-sage-700" />
+                        To Everyone
                       </div>
                     )}
                   </div>
 
-                  {/* Divider */}
-                  <div className="w-px h-7 bg-slate-200 shrink-0 self-center" />
+                  <div className="w-px h-9 bg-slate-200 shrink-0 self-center" />
 
                   {/* Text input */}
                   <textarea
@@ -1496,7 +1655,7 @@ export default function ChatPage() {
                         sendMessage(e);
                       }
                     }}
-                    placeholder="Ask a question or declare an action..."
+                    placeholder={chatMode === 'room' ? 'Message everyone in the room...' : 'Ask a question or declare an action...'}
                     rows={1}
                     style={{ minHeight: '40px' }}
                     className="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 placeholder-slate-400 resize-none py-2.5 max-h-32 text-sm outline-none leading-relaxed"
@@ -1548,7 +1707,9 @@ export default function ChatPage() {
                 <h3 className="text-xs font-bold text-slate-500 uppercase">Active Votes</h3>
                 <button
                   onClick={() => setShowCreateProposal(true)}
-                  className="text-sage-600 hover:text-sage-700 text-[10px] font-medium"
+                  disabled={roomRole !== 'admin'}
+                  title={roomRole === 'admin' ? 'Create vote' : 'Only admins can create votes'}
+                  className="text-sage-600 hover:text-sage-700 disabled:text-slate-300 text-[10px] font-medium"
                 >
                   + New
                 </button>
@@ -1613,8 +1774,9 @@ export default function ChatPage() {
                       {/* Close vote */}
                       <button
                         onClick={() => handleCloseVoting(proposal.id)}
-                        disabled={closingProposal === proposal.id}
-                        className="mt-2 w-full text-[10px] py-1 text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors font-medium disabled:opacity-50"
+                        disabled={closingProposal === proposal.id || roomRole !== 'admin'}
+                        title={roomRole === 'admin' ? 'Close vote and generate AI response' : 'Only admins can close votes'}
+                        className="mt-2 w-full text-[10px] py-1 text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {closingProposal === proposal.id ? 'Closing...' : 'Close & Get AI Response'}
                       </button>
@@ -1665,10 +1827,12 @@ export default function ChatPage() {
             <section className="pt-4 border-t border-slate-100">
               <button
                 onClick={() => setShowCreateProposal(true)}
-                className="w-full flex items-center justify-center gap-2 bg-sage-600 hover:bg-sage-700 text-white py-2 rounded-lg text-xs font-medium transition-colors shadow-sm mb-2"
+                disabled={roomRole !== 'admin'}
+                title={roomRole === 'admin' ? 'Create vote' : 'Only admins can create votes'}
+                className="w-full flex items-center justify-center gap-2 bg-sage-600 hover:bg-sage-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-medium transition-colors shadow-sm mb-2"
               >
                 <Icon name="how_to_vote" className="text-sm" />
-                New Vote
+                {roomRole === 'admin' ? 'New Vote' : 'Admin Only'}
               </button>
             </section>
           </div>

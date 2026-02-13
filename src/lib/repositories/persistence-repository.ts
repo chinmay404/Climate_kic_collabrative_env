@@ -319,14 +319,14 @@ export async function upsertRoomMember(input: {
   await dbQuery(
     `
       insert into public.room_members (room_id, user_id, role, is_active, last_seen_at)
-      values ($1, $2, $3, true, now())
+      values ($1, $2, coalesce($3::public.room_member_role, 'member'::public.room_member_role), true, now())
       on conflict (room_id, user_id)
       do update set
-        role = excluded.role,
+        role = coalesce($3::public.room_member_role, public.room_members.role),
         is_active = true,
         last_seen_at = now()
     `,
-    [input.roomId, input.userId, input.role || 'member']
+    [input.roomId, input.userId, input.role ?? null]
   );
 }
 
@@ -335,6 +335,17 @@ export async function touchRoomMemberPresence(roomId: string, userId: string): P
     `
       update public.room_members
       set last_seen_at = now(), is_active = true
+      where room_id = $1 and user_id = $2
+    `,
+    [roomId, userId]
+  );
+}
+
+export async function setRoomMemberInactive(roomId: string, userId: string): Promise<void> {
+  await dbQuery(
+    `
+      update public.room_members
+      set last_seen_at = now() - interval '5 minutes', updated_at = now(), is_active = true
       where room_id = $1 and user_id = $2
     `,
     [roomId, userId]
@@ -556,6 +567,17 @@ export async function setRoomCurrentRole(roomId: string, currentRole: string): P
       where id = $1
     `,
     [roomId, currentRole]
+  );
+}
+
+export async function updateRoomTitle(roomId: string, title: string): Promise<void> {
+  await dbQuery(
+    `
+      update public.rooms
+      set title = $2, updated_at = now()
+      where id = $1
+    `,
+    [roomId, title]
   );
 }
 

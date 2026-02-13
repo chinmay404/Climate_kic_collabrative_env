@@ -6,10 +6,12 @@ import {
   addLocalMessage,
   createAuditLog,
   createRoomWithAdmin,
+  getRoomMemberRole,
   getRoomRuntime,
   listActiveParticipants,
   listLocalMessages,
   listProposalsByRoom,
+  setRoomMemberInactive,
   setRoomAiThinking,
   setRoomCurrentRole,
   setRoomSessionId,
@@ -250,7 +252,7 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
     onyxError = `Onyx is not configured (${onyx.errors.join(' ')})`;
   }
 
-  await createRoomWithAdmin({
+  const createdRoom = await createRoomWithAdmin({
     roomId,
     onyxSessionId,
     creatorUserId: context.user.id
@@ -283,6 +285,8 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
   return NextResponse.json({
     roomId,
     sessionId: onyxSessionId || roomId,
+    roomTitle: createdRoom.title,
+    roomRole: 'admin',
     openingScene,
     onyxError
   });
@@ -312,8 +316,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });
   }
 
-  await upsertRoomMember({ roomId, userId: auth.context.user.id, role: 'member' });
+  await upsertRoomMember({ roomId, userId: auth.context.user.id });
   await touchRoomMemberPresence(roomId, auth.context.user.id);
+  const roomRole = await getRoomMemberRole(roomId, auth.context.user.id);
 
   if (action === 'sync') {
     if (!roomRuntime.onyxSessionId) {
@@ -352,7 +357,9 @@ export async function GET(request: NextRequest) {
     aiThinking: roomRuntime.aiThinking,
     typingUsers,
     proposals,
-    participants
+    participants,
+    roomTitle: roomRuntime.title,
+    roomRole
   });
 }
 
@@ -375,7 +382,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Room not found' }, { status: 404 });
   }
 
-  await upsertRoomMember({ roomId, userId: auth.context.user.id, role: 'member' });
+  await upsertRoomMember({ roomId, userId: auth.context.user.id });
   await touchRoomMemberPresence(roomId, auth.context.user.id);
 
   if (roomRuntime.onyxSessionId && onyx.isReady && onyx.base && onyx.apiKey) {
@@ -432,10 +439,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Room not found' }, { status: 404 });
     }
 
-    await upsertRoomMember({ roomId, userId: auth.context.user.id, role: 'member' });
+    await upsertRoomMember({ roomId, userId: auth.context.user.id });
     await touchRoomMemberPresence(roomId, auth.context.user.id);
 
     const senderName = getUserDisplayName(auth.context);
+
+    if (action === 'leave') {
+      await setRoomMemberInactive(roomId, auth.context.user.id);
+      const roomMap = typingState.get(roomId);
+      if (roomMap) {
+        roomMap.delete(senderName);
+        if (roomMap.size === 0) {
+          typingState.delete(roomId);
+        }
+      }
+      return NextResponse.json({ success: true });
+    }
 
     if (action === 'typing') {
       setTyping(roomId, senderName);
@@ -449,6 +468,31 @@ export async function POST(request: NextRequest) {
     const content = typeof body?.content === 'string' ? body.content.trim() : '';
     if (!content) {
       return NextResponse.json({ error: 'Content is required' }, { status: 400 });
+    }
+
+    if (action === 'broadcast') {
+      const userMessage = await addLocalMessage({
+        roomId,
+        role: 'user',
+        content,
+        senderUserId: auth.context.user.id,
+        senderName,
+        targetRole: 'Everyone',
+        source: 'local'
+      });
+
+      await createAuditLog({
+        roomId,
+        actorUserId: auth.context.user.id,
+        action: 'chat.broadcast_message',
+        entityType: 'message',
+        entityId: userMessage.id
+      });
+
+      return NextResponse.json({
+        ...userMessage,
+        error: null
+      });
     }
 
     const effectiveRole = targetRole || runtime.currentRole || 'Narrator';
