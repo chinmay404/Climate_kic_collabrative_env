@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthContext, type AuthContext } from '@/lib/auth/server';
+import { dbQuery } from '@/lib/db';
 import { getOnyxConfig, type OnyxConfig } from '@/lib/onyx';
 import {
   addLocalMessage,
@@ -31,8 +32,18 @@ const FALLBACK_OPENING_SCENE =
 
 const TYPING_TTL_MS = 3000;
 const PARTICIPANT_ACTIVE_MS = 45_000;
+const FACTS_PROMPT_LIMIT = 20;
 
 const typingState = new Map<string, Map<string, number>>();
+
+type PromptFactRow = {
+  id: string;
+  short_id: string | null;
+  fact: string;
+  source: string | null;
+  created_by: string | null;
+  created_at: Date;
+};
 
 function makeRoomId(): string {
   return `ROOM-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
@@ -201,6 +212,77 @@ async function sendOnyxMessage(
   } catch {
     return { answer: null, error: 'Network error while contacting AI service.' };
   }
+}
+
+async function listPromptFacts(roomId: string, limit = FACTS_PROMPT_LIMIT): Promise<PromptFactRow[]> {
+  try {
+    try {
+      const result = await dbQuery<PromptFactRow>(
+        `
+          select
+            id::text as id,
+            short_id,
+            fact,
+            source,
+            created_by,
+            created_at
+          from public.room_facts
+          where room_id = $1
+          order by created_at desc
+          limit $2
+        `,
+        [roomId, limit]
+      );
+      return result.rows;
+    } catch (error) {
+      const err = error as { code?: string };
+      if (err.code === '42703') {
+        const fallback = await dbQuery<PromptFactRow>(
+          `
+            select
+              id::text as id,
+              null::text as short_id,
+              fact,
+              source,
+              created_by,
+              created_at
+            from public.room_facts
+            where room_id = $1
+            order by created_at desc
+            limit $2
+          `,
+          [roomId, limit]
+        );
+        return fallback.rows;
+      }
+      throw error;
+    }
+  } catch (error) {
+    const err = error as { code?: string };
+    if (err.code === '42P01') {
+      return [];
+    }
+    throw error;
+  }
+}
+
+function buildFactsContextBlock(facts: PromptFactRow[]): string {
+  if (facts.length === 0) return '';
+
+  const lines = facts.map((fact) => {
+    const id = fact.short_id || fact.id;
+    const by = fact.created_by ? ` | by ${fact.created_by}` : '';
+    const source = fact.source ? ` | source ${fact.source}` : '';
+    return `- ${id}: ${fact.fact}${by}${source}`;
+  });
+
+  return [
+    '[VERIFIED_ROOM_FACTS]',
+    'Use these room facts as trusted context unless the user explicitly corrects them.',
+    ...lines,
+    '[/VERIFIED_ROOM_FACTS]',
+    ''
+  ].join('\n');
 }
 
 async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
@@ -544,13 +626,21 @@ export async function POST(request: NextRequest) {
 
     const rolePrefix = `[RESPOND AS: ${effectiveRole}]\n`;
     const userPrefix = `User question: `;
+    let factsContext = '';
+
+    try {
+      const facts = await listPromptFacts(roomId);
+      factsContext = buildFactsContextBlock(facts);
+    } catch (error) {
+      console.error('Failed to load room facts for AI prompt:', error);
+    }
 
     await setRoomAiThinking(roomId, true);
     try {
       const result = await sendOnyxMessage(
         onyx,
         runtime.onyxSessionId,
-        `${rolePrefix}${userPrefix}${content}`
+        `${rolePrefix}${factsContext}${userPrefix}${content}`
       );
 
       if (result.chatSessionId && result.chatSessionId !== runtime.onyxSessionId) {

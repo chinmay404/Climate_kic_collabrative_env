@@ -701,7 +701,7 @@ export async function createProposalWithOptions(input: {
   createdByUserId: string;
   durationHours: number;
 }): Promise<ProposalView> {
-  const safeDuration = Math.max(1, Math.min(input.durationHours, 168));
+  const safeDuration = Math.max(1, Math.min(Math.round(input.durationHours), 168));
   let createdProposalId: string | null = null;
   await withDbClient(async (client) => {
     await client.query('begin');
@@ -716,7 +716,7 @@ export async function createProposalWithOptions(input: {
             duration_hours,
             ends_at
           )
-          values ($1, $2, $3, $4, $5, now() + ($5::text || ' hours')::interval)
+          values ($1, $2, $3, $4, $5::int, now() + make_interval(hours => $6::int))
           returning
             id,
             title,
@@ -729,7 +729,7 @@ export async function createProposalWithOptions(input: {
             ai_response_message_id,
             null::text as created_by_username
         `,
-        [input.roomId, input.title, input.description, input.createdByUserId, safeDuration]
+        [input.roomId, input.title, input.description, input.createdByUserId, safeDuration, safeDuration]
       );
 
       const proposal = proposalInsert.rows[0];

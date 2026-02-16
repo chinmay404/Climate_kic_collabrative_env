@@ -46,17 +46,14 @@ interface RoomSummary {
   lastMessageAt: string | null;
 }
 
-interface RoomLog {
-  id: number;
-  roomId: string | null;
-  actorUserId: string | null;
-  action: string;
-  entityType: string;
-  entityId: string | null;
-  metadata: Record<string, unknown>;
-  ipAddress: string | null;
-  userAgent: string | null;
+interface RoomFact {
+  id: string;
+  shortId: string | null;
+  fact: string;
+  source: string | null;
+  createdBy: string | null;
   createdAt: string;
+  summary?: string | null;
 }
 
 const defaultProposalOptions = ['Yes', 'No', 'Abstain'];
@@ -111,8 +108,9 @@ export default function ChatPage() {
   const [renamingRoom, setRenamingRoom] = useState(false);
   const [myRooms, setMyRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
-  const [roomLogs, setRoomLogs] = useState<RoomLog[]>([]);
-  const [logsLoading, setLogsLoading] = useState(false);
+  const [roomFacts, setRoomFacts] = useState<RoomFact[]>([]);
+  const [factsLoading, setFactsLoading] = useState(false);
+
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastTypingSentRef = useRef<number>(0);
@@ -122,10 +120,10 @@ export default function ChatPage() {
     setRoomId('');
     setMessages([]);
     setActiveProposals([]);
+    setRoomFacts([]);
     setTypingUsers({});
     setParticipants([]);
     setMyRooms([]);
-    setRoomLogs([]);
     setRoomTitle('Valle Verde Simulation');
     setRoomRole('member');
     setChatMode('ai');
@@ -358,24 +356,34 @@ export default function ChatPage() {
     }
   }, [isLoggedIn, handleSessionExpired]);
 
-  const fetchRoomLogs = useCallback(async () => {
-    if (!roomId || !showSidebar) return;
-    setLogsLoading(true);
+  const fetchRoomFacts = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!roomId) return;
+    const silent = opts?.silent ?? false;
+    if (!silent) {
+      setFactsLoading(true);
+    }
+
     try {
-      const res = await fetch(`/api/rooms/${roomId}/logs?limit=50`, { cache: 'no-store' });
+      const res = await fetch(`/api/rooms/${encodeURIComponent(roomId)}/facts?limit=50`, {
+        cache: 'no-store'
+      });
       if (res.status === 401) {
         handleSessionExpired();
         return;
       }
       if (!res.ok) return;
       const data = await res.json().catch(() => null);
-      if (Array.isArray(data?.logs)) {
-        setRoomLogs(data.logs as RoomLog[]);
+      if (Array.isArray(data?.facts)) {
+        setRoomFacts(data.facts as RoomFact[]);
       }
     } finally {
-      setLogsLoading(false);
+      if (!silent) {
+        setFactsLoading(false);
+      }
     }
-  }, [roomId, showSidebar, handleSessionExpired]);
+  }, [roomId, handleSessionExpired]);
+
+
 
   useEffect(() => {
     if (!joined || !roomId) return;
@@ -406,9 +414,15 @@ export default function ChatPage() {
   }, [isLoggedIn, joined, fetchMyRooms]);
 
   useEffect(() => {
-    if (!joined || !showSidebar) return;
-    fetchRoomLogs();
-  }, [joined, showSidebar, fetchRoomLogs]);
+    if (!joined || !roomId || !showSidebar) return;
+    fetchRoomFacts();
+    const interval = setInterval(() => {
+      fetchRoomFacts({ silent: true }).catch(() => undefined);
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [joined, roomId, showSidebar, fetchRoomFacts]);
+
+
 
   useEffect(() => {
     const container = messagesEndRef.current?.parentElement;
@@ -483,6 +497,7 @@ export default function ChatPage() {
       } else {
         setMessages([]);
       }
+      setRoomFacts([]);
       setRoomId(data.roomId);
       setRoomTitle(typeof data.roomTitle === 'string' && data.roomTitle.trim() ? data.roomTitle : 'Valle Verde Simulation');
       setRoomRole(data.roomRole === 'admin' ? 'admin' : 'member');
@@ -520,6 +535,7 @@ export default function ChatPage() {
         setRoomTitle('Valle Verde Simulation');
         setRoomRole('member');
         setChatMode('ai');
+        setRoomFacts([]);
         setUsername(userToUse);
         setJoined(true);
         setLastError('');
@@ -647,7 +663,7 @@ export default function ChatPage() {
       const res = await fetch('/api/vote', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'close', roomId, proposalId, requestAIResponse: true }),
+        body: JSON.stringify({ action: 'close', roomId, proposalId, requestAIResponse: false }),
       });
       if (res.status === 401) {
         handleSessionExpired();
@@ -655,7 +671,7 @@ export default function ChatPage() {
       }
       if (!res.ok) {
         const data = await res.json();
-        alert(data.error || 'Failed to close voting');
+        alert(data.error || data.details || 'Failed to close voting');
       }
       await fetchMessages();
     } catch { console.error('Failed to close voting'); }
@@ -738,12 +754,12 @@ export default function ChatPage() {
     setRoomId('');
     setMessages([]);
     setActiveProposals([]);
+    setRoomFacts([]);
     setParticipants([]);
     setTypingUsers({});
     setUsername('');
     setJoinPasswordInput('');
     setMyRooms([]);
-    setRoomLogs([]);
     setAuthError('');
     setIsLoggedIn(false);
   };
@@ -872,7 +888,7 @@ export default function ChatPage() {
                   <input id="remember-me" type="checkbox" className="h-4 w-4 rounded border-slate-300 text-navy-800 focus:ring-navy-700" />
                   <label htmlFor="remember-me" className="ml-2 block text-slate-600 text-xs">Remember me</label>
                 </div>
-                <button type="button" className="text-navy-700 hover:text-navy-900 font-medium text-xs">Forgot password?</button>
+                <button type="button" className="text-navy-700 hover:text-navy-900 font-medium text-xs"></button>
               </div>
 
               <button
@@ -900,7 +916,7 @@ export default function ChatPage() {
           </div>
 
           <p className="mt-8 text-center text-xs text-slate-400">
-            © 2024 Climate Sandbox Initiative. Authorized access only.
+            {/* © 2024 Climate Sandbox Initiative. Authorized access only. */}
           </p>
         </div>
       </div>
@@ -1218,41 +1234,46 @@ export default function ChatPage() {
   return (
     <div className="bg-background-light font-sans h-screen flex flex-col overflow-hidden text-text-light transition-colors duration-200">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <header className="bg-card-light border-b border-slate-200 h-16 shrink-0 flex items-center justify-between px-6 z-20 shadow-sm">
+      <header className="bg-card-light border-b border-slate-200 h-14 shrink-0 flex items-center justify-between px-6 z-20 shadow-sm">
         <div className="flex items-center gap-6">
           {/* Logo */}
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-lg bg-navy-900 text-white flex items-center justify-center shadow-sm">
               <Icon name="science" className="text-lg" />
             </div>
-            <div>
-              <h1 className="font-bold text-slate-800 text-sm leading-tight">Climate Sandbox</h1>
-              <div className="flex items-center gap-2 mt-0.5">
-                <span className="text-[11px] font-semibold text-slate-700 truncate max-w-[220px]">{roomTitle}</span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-slate-900 text-sm">Climate Sandbox</h1>
+                <span className="text-slate-300">/</span>
+                <span className="font-semibold text-slate-700 text-sm truncate max-w-[200px]">{roomTitle}</span>
                 {roomRole === 'admin' && (
                   <button
                     onClick={handleRenameRoom}
                     disabled={renamingRoom}
-                    className="text-[10px] text-navy-700 hover:text-navy-900 disabled:text-slate-400 font-medium"
+                    className="ml-1 p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors"
+                    title="Rename Room"
                   >
-                    {renamingRoom ? 'Renaming...' : 'Rename'}
+                    <Icon name="edit" className="text-[14px]" />
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold tracking-wider text-muted-light uppercase">
-                  Simulation Room
-                </span>
-                <span className="w-1 h-1 rounded-full bg-slate-300" />
+              <div className="flex items-center gap-2 mt-0.5">
+                <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-[10px] font-medium tracking-wide text-slate-600 uppercase">
+                    Simulation Active
+                  </span>
+                </div>
+                <span className="text-slate-300">|</span>
                 <button
                   onClick={handleCopyRoomId}
-                  className="text-[10px] font-mono text-muted-light hover:text-navy-700 transition-colors flex items-center gap-1 group"
+                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200"
                   title="Click to copy Room ID"
                 >
-                  ID: {roomId.slice(0, 8)}...{roomId.slice(-4)}
-                  <Icon name="content_copy" className="text-[9px] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <span className="opacity-50">ID:</span> {roomId.slice(0, 8)}...
+                  <Icon name="content_copy" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" />
                   {copiedRoomId && (
-                    <span className="ml-1 text-[9px] font-sans text-sage-600">Copied</span>
+                    <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>
                   )}
                 </button>
               </div>
@@ -1302,14 +1323,14 @@ export default function ChatPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowSidebar(!showSidebar)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md transition-all border shadow-sm ${
+            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${
               showSidebar
                 ? 'bg-navy-900 text-white border-navy-900'
-                : 'bg-white text-slate-600 border-slate-200 hover:text-navy-900 hover:border-slate-300'
+                : 'bg-white text-slate-500 border-slate-200 hover:text-navy-900 hover:border-slate-300'
             }`}
+            title={showSidebar ? 'Hide panel' : 'Show panel'}
           >
-            <Icon name="tune" className="text-sm" />
-            Settings
+            <Icon name="dashboard" className="text-base" />
           </button>
           <button
             onClick={() => {
@@ -1318,16 +1339,16 @@ export default function ChatPage() {
               setMessages([]);
               setRoomId('');
               setActiveProposals([]);
-              setRoomLogs([]);
+              setRoomFacts([]);
               setShowSidebar(false);
               setRoomTitle('Valle Verde Simulation');
               setRoomRole('member');
               setChatMode('ai');
             }}
-            className="bg-navy-900 hover:bg-navy-800 text-white px-3 py-1.5 rounded-md text-xs font-medium transition-colors shadow-sm flex items-center gap-2 border border-navy-900"
+            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
+            title="Exit Simulation"
           >
-            <Icon name="logout" className="text-sm" />
-            Exit Sim
+            <Icon name="logout" className="text-base" />
           </button>
         </div>
       </header>
@@ -1664,13 +1685,6 @@ export default function ChatPage() {
 
                   <div className="flex items-center gap-0.5 h-10 pb-0">
                     <button
-                      type="button"
-                      className="w-8 h-8 flex items-center justify-center text-slate-300 hover:text-sage-600 rounded-lg hover:bg-sage-50 transition-all"
-                      title="Attach Context"
-                    >
-                      <Icon name="attach_file" className="text-lg transform rotate-45" />
-                    </button>
-                    <button
                       type="submit"
                       disabled={loading || !input.trim()}
                       className={`h-9 w-9 rounded-xl shadow-sm flex items-center justify-center transition-all active:scale-90 ml-0.5 ${
@@ -1696,8 +1710,8 @@ export default function ChatPage() {
         <aside className="w-80 bg-white border-l border-slate-200 flex-col shrink-0 z-10 flex">
           <div className="p-4 border-b border-slate-200 bg-slate-50/50">
             <h2 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2">
-              <Icon name="dataset" className="text-sm text-navy-700" />
-              Simulation State
+              <Icon name="dashboard" className="text-sm text-navy-700" />
+              Simulation Panel
             </h2>
           </div>
           <div className="flex-1 overflow-y-auto p-4 space-y-6">
@@ -1775,10 +1789,10 @@ export default function ChatPage() {
                       <button
                         onClick={() => handleCloseVoting(proposal.id)}
                         disabled={closingProposal === proposal.id || roomRole !== 'admin'}
-                        title={roomRole === 'admin' ? 'Close vote and generate AI response' : 'Only admins can close votes'}
+                        title={roomRole === 'admin' ? 'Close this vote' : 'Only admins can close votes'}
                         className="mt-2 w-full text-[10px] py-1 text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {closingProposal === proposal.id ? 'Closing...' : 'Close & Get AI Response'}
+                        {closingProposal === proposal.id ? 'Closing...' : 'Close Vote'}
                       </button>
                     </div>
                   );
@@ -1786,54 +1800,85 @@ export default function ChatPage() {
               </div>
             </section>
 
-            {/* Verified Facts (populated from backend) */}
+            {/* Verified Facts */}
             <section>
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-500 uppercase">Verified Facts</h3>
-              </div>
-              <div className="space-y-2">
-                <p className="text-[10px] text-slate-400 italic">No verified facts yet</p>
-              </div>
-            </section>
-
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-500 uppercase">Room Logs</h3>
+                <h3 className="text-xs font-bold text-slate-500 uppercase">Facts</h3>
                 <button
-                  onClick={fetchRoomLogs}
-                  className="text-[10px] font-medium text-navy-700 hover:text-navy-900"
+                  onClick={() => fetchRoomFacts()}
+                  className="text-sage-600 hover:text-sage-700 text-[10px] font-medium"
+                  title="Refresh facts"
                 >
                   Refresh
                 </button>
               </div>
-              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-                {logsLoading && (
-                  <p className="text-[10px] text-slate-400 italic">Loading logs...</p>
+              <div className="space-y-2">
+                {factsLoading && roomFacts.length === 0 && (
+                  <p className="text-[10px] text-slate-400 italic">Loading facts...</p>
                 )}
-                {!logsLoading && roomLogs.length === 0 && (
-                  <p className="text-[10px] text-slate-400 italic">No logs yet</p>
+                {!factsLoading && roomFacts.length === 0 && (
+                  <div className="flex flex-col items-center py-4 text-center">
+                    <Icon name="verified" className="text-2xl text-slate-200 mb-1" />
+                    <p className="text-[10px] text-slate-400 italic">Facts will appear here as the simulation progresses</p>
+                  </div>
                 )}
-                {!logsLoading &&
-                  roomLogs.slice(0, 20).map((log) => (
-                    <div key={log.id} className="rounded-md border border-slate-200 bg-slate-50 px-2.5 py-2">
-                      <p className="text-[10px] font-semibold text-slate-700">{log.action}</p>
-                      <p className="text-[10px] text-slate-500">{new Date(log.createdAt).toLocaleString()}</p>
+                {roomFacts.map((fact) => {
+                  const factId = fact.shortId || fact.id;
+                  const hasSummary = Boolean(fact.summary?.trim());
+                  const content = fact.summary?.trim() || `${factId} | ${fact.fact}`;
+                  return (
+                    <div key={fact.id} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2">
+                      {!hasSummary && (
+                        <p className="text-[10px] text-blue-600 mb-0.5 font-semibold">{factId}</p>
+                      )}
+                      <p className="text-[10px] font-medium text-blue-800">{content}</p>
                     </div>
-                  ))}
+                  );
+                })}
               </div>
             </section>
 
-            {/* New Vote Button */}
-            <section className="pt-4 border-t border-slate-100">
-              <button
-                onClick={() => setShowCreateProposal(true)}
-                disabled={roomRole !== 'admin'}
-                title={roomRole === 'admin' ? 'Create vote' : 'Only admins can create votes'}
-                className="w-full flex items-center justify-center gap-2 bg-sage-600 hover:bg-sage-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-xs font-medium transition-colors shadow-sm mb-2"
-              >
-                <Icon name="how_to_vote" className="text-sm" />
-                {roomRole === 'admin' ? 'New Vote' : 'Admin Only'}
-              </button>
+            {/* Previous Votes */}
+            <section>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-slate-500 uppercase">Previous Votes</h3>
+              </div>
+              <div className="space-y-2">
+                {(() => {
+                  const closed = activeProposals.filter(p => p.status === 'closed');
+                  if (closed.length === 0) {
+                    return <p className="text-[10px] text-slate-400 italic">No completed votes yet</p>;
+                  }
+                  return closed.map((proposal) => {
+                    const totalVotes = Object.keys(proposal.votes).length;
+                    let winnerLabel = 'No votes';
+                    let winnerCount = 0;
+                    if (totalVotes > 0) {
+                      const counts: Record<string, number> = {};
+                      Object.values(proposal.votes).forEach((optId) => { counts[optId] = (counts[optId] || 0) + 1; });
+                      const winnerOptId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+                      winnerCount = counts[winnerOptId];
+                      const winnerOpt = proposal.options.find(o => o.id === winnerOptId);
+                      winnerLabel = winnerOpt?.label || winnerOptId;
+                    }
+                    return (
+                      <div key={proposal.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                        <p className="text-[10px] font-semibold text-slate-700 mb-1">{proposal.title}</p>
+                        <div className="flex items-center gap-1.5">
+                          <Icon name="emoji_events" className="text-xs text-amber-500" />
+                          <span className="text-[10px] font-medium text-slate-600">{winnerLabel}</span>
+                          <span className="text-[10px] text-slate-400">({winnerCount}/{totalVotes} votes)</span>
+                        </div>
+                        {proposal.closedAt && (
+                          <p className="text-[9px] text-slate-400 mt-1">
+                            Closed {new Date(proposal.closedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
             </section>
           </div>
         </aside>

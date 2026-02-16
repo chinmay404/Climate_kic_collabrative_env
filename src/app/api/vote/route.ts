@@ -335,7 +335,7 @@ export async function POST(request: NextRequest) {
       }
 
       const proposalId = typeof body?.proposalId === 'string' ? body.proposalId : '';
-      const requestAIResponse = Boolean(body?.requestAIResponse);
+      const requestAIResponse = false; // disabled — votes close without AI response
 
       if (!proposalId) {
         return NextResponse.json({ error: 'proposalId is required' }, { status: 400 });

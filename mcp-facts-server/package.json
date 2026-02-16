@@ -1,0 +1,25 @@
+{
+  "name": "mcp-facts-server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "migrate": "psql \"$DATABASE_URL\" -f migrations/001_room_facts.sql && psql \"$DATABASE_URL\" -f migrations/002_room_facts_short_id.sql",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "express": "^4.21.2",
+    "pg": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.24",
+    "@types/express": "^4.17.21",
+    "@types/pg": "^8.16.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.2"
+  }
+}
