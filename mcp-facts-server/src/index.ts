@@ -46,6 +46,143 @@ type RoomFact = {
   summary: string;
 };
 
+type ResolvedRoom = {
+  id: string;
+  matchType: 'id' | 'onyx_session_id';
+};
+
+type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+
+const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
+  debug: 10,
+  info: 20,
+  warn: 30,
+  error: 40
+};
+
+function getConfiguredLogLevel(): LogLevel {
+  const raw = (process.env.FACTS_LOG_LEVEL || 'info').toLowerCase();
+  if (raw === 'debug' || raw === 'info' || raw === 'warn' || raw === 'error') {
+    return raw;
+  }
+  return 'info';
+}
+
+const configuredLogLevel = getConfiguredLogLevel();
+
+function shouldLog(level: LogLevel): boolean {
+  return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[configuredLogLevel];
+}
+
+function logEvent(level: LogLevel, event: string, data?: Record<string, unknown>) {
+  if (!shouldLog(level)) return;
+
+  const payload = {
+    ts: new Date().toISOString(),
+    level,
+    event,
+    ...(data || {})
+  };
+
+  const line = JSON.stringify(payload);
+  if (level === 'error') {
+    console.error(line);
+    return;
+  }
+  if (level === 'warn') {
+    console.warn(line);
+    return;
+  }
+  console.log(line);
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return typeof error === 'string' ? error : 'Unexpected error.';
+}
+
+function previewText(value: string, maxLength = 120): string {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, maxLength)}...(${value.length} chars)`;
+}
+
+function summarizeToolArgs(name: string, args: unknown): Record<string, unknown> {
+  try {
+    if (name === 'store_fact') {
+      const parsed = parseStoreFactArgs(args);
+      return {
+        roomId: parsed.roomId,
+        factPreview: previewText(parsed.fact),
+        hasSource: Boolean(parsed.source),
+        hasCreatedBy: Boolean(parsed.createdBy)
+      };
+    }
+
+    if (name === 'list_facts') {
+      const parsed = parseListFactsArgs(args);
+      return {
+        roomId: parsed.roomId,
+        limit: parsed.limit ?? 50,
+        offset: parsed.offset ?? 0
+      };
+    }
+
+    if (name === 'update_fact') {
+      const parsed = parseUpdateFactArgs(args);
+      return {
+        id: parsed.id,
+        hasFact: parsed.fact !== undefined,
+        hasSource: parsed.source !== undefined,
+        hasCreatedBy: parsed.createdBy !== undefined
+      };
+    }
+
+    if (name === 'delete_fact') {
+      const parsed = parseDeleteFactArgs(args);
+      return {
+        id: parsed.id
+      };
+    }
+  } catch (error) {
+    return {
+      parseError: errorMessage(error)
+    };
+  }
+
+  return {};
+}
+
+async function resolveRoomId(inputRoomId: string): Promise<ResolvedRoom> {
+  const result = await dbQuery<{ id: string; onyx_session_id: string | null }>(
+    `
+      select id, onyx_session_id
+      from public.rooms
+      where id = $1 or onyx_session_id = $1
+      limit 1
+    `,
+    [inputRoomId]
+  );
+
+  const row = result.rows[0];
+  if (!row) {
+    throw new Error(
+      `Unknown roomId "${inputRoomId}". It must match an existing public.rooms.id or public.rooms.onyx_session_id.`
+    );
+  }
+
+  if (row.id === inputRoomId) {
+    return {
+      id: row.id,
+      matchType: 'id'
+    };
+  }
+
+  return {
+    id: row.id,
+    matchType: 'onyx_session_id'
+  };
+}
+
 function asRecord(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     throw new Error('Arguments must be an object.');
@@ -158,6 +295,23 @@ function parseDeleteFactArgs(args: unknown): DeleteFactArgs {
 }
 
 async function insertRoomFact(args: StoreFactArgs): Promise<RoomFact> {
+  const resolvedRoom = await resolveRoomId(args.roomId);
+  if (resolvedRoom.id !== args.roomId) {
+    logEvent('info', 'facts.room.resolved_alias', {
+      requestedRoomId: args.roomId,
+      resolvedRoomId: resolvedRoom.id,
+      matchType: resolvedRoom.matchType
+    });
+  }
+
+  logEvent('debug', 'facts.insert.start', {
+    requestedRoomId: args.roomId,
+    resolvedRoomId: resolvedRoom.id,
+    factPreview: previewText(args.fact),
+    hasSource: Boolean(args.source),
+    hasCreatedBy: Boolean(args.createdBy)
+  });
+
   const result = await dbQuery<{
     id: string;
     room_id: string;
@@ -172,7 +326,7 @@ async function insertRoomFact(args: StoreFactArgs): Promise<RoomFact> {
       values ($1, $2, $3, $4)
       returning id, room_id, short_id, fact, source, created_by, created_at
     `,
-    [args.roomId, args.fact, args.source ?? null, args.createdBy ?? null]
+    [resolvedRoom.id, args.fact, args.source ?? null, args.createdBy ?? null]
   );
 
   const row = result.rows[0];
@@ -187,10 +341,25 @@ async function insertRoomFact(args: StoreFactArgs): Promise<RoomFact> {
     summary: ''
   };
   fact.summary = formatFactSummary(fact);
+  logEvent('info', 'facts.insert.success', {
+    requestedRoomId: args.roomId,
+    roomId: fact.roomId,
+    id: fact.id,
+    shortId: fact.shortId
+  });
   return fact;
 }
 
 async function listRoomFacts(args: ListFactsArgs): Promise<RoomFact[]> {
+  const resolvedRoom = await resolveRoomId(args.roomId);
+  if (resolvedRoom.id !== args.roomId) {
+    logEvent('info', 'facts.room.resolved_alias', {
+      requestedRoomId: args.roomId,
+      resolvedRoomId: resolvedRoom.id,
+      matchType: resolvedRoom.matchType
+    });
+  }
+
   const limit = args.limit ?? 50;
   const offset = args.offset ?? 0;
 
@@ -211,10 +380,10 @@ async function listRoomFacts(args: ListFactsArgs): Promise<RoomFact[]> {
       limit $2
       offset $3
     `,
-    [args.roomId, limit, offset]
+    [resolvedRoom.id, limit, offset]
   );
 
-  return result.rows.map((row) => {
+  const facts = result.rows.map((row) => {
     const fact: RoomFact = {
       id: row.id,
       shortId: row.short_id,
@@ -228,6 +397,16 @@ async function listRoomFacts(args: ListFactsArgs): Promise<RoomFact[]> {
     fact.summary = formatFactSummary(fact);
     return fact;
   });
+
+  logEvent('debug', 'facts.list.success', {
+    requestedRoomId: args.roomId,
+    roomId: resolvedRoom.id,
+    count: facts.length,
+    limit,
+    offset
+  });
+
+  return facts;
 }
 
 async function updateRoomFact(args: UpdateFactArgs): Promise<RoomFact | null> {
@@ -268,7 +447,10 @@ async function updateRoomFact(args: UpdateFactArgs): Promise<RoomFact | null> {
   );
 
   const row = result.rows[0];
-  if (!row) return null;
+  if (!row) {
+    logEvent('warn', 'facts.update.not_found', { id: args.id });
+    return null;
+  }
 
   const fact: RoomFact = {
     id: row.id,
@@ -281,6 +463,10 @@ async function updateRoomFact(args: UpdateFactArgs): Promise<RoomFact | null> {
     summary: ''
   };
   fact.summary = formatFactSummary(fact);
+  logEvent('info', 'facts.update.success', {
+    id: fact.id,
+    shortId: fact.shortId
+  });
   return fact;
 }
 
@@ -294,7 +480,12 @@ async function deleteRoomFact(args: DeleteFactArgs): Promise<boolean> {
     [args.id]
   );
 
-  return (result.rowCount ?? 0) > 0;
+  const deleted = (result.rowCount ?? 0) > 0;
+  logEvent(deleted ? 'info' : 'warn', 'facts.delete.result', {
+    id: args.id,
+    deleted
+  });
+  return deleted;
 }
 
 function formatFactSummary(fact: RoomFact): string {
@@ -378,12 +569,22 @@ function createServer() {
   });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
-    try {
-      const { name, arguments: args } = request.params;
+    const { name, arguments: args } = request.params;
+    logEvent('info', 'tool.call.received', {
+      tool: name,
+      args: summarizeToolArgs(name, args)
+    });
 
+    try {
       if (name === 'store_fact') {
         const parsed = parseStoreFactArgs(args);
         const fact = await insertRoomFact(parsed);
+        logEvent('info', 'tool.call.success', {
+          tool: name,
+          roomId: fact.roomId,
+          id: fact.id,
+          shortId: fact.shortId
+        });
         return {
           content: [
             {
@@ -397,6 +598,11 @@ function createServer() {
       if (name === 'list_facts') {
         const parsed = parseListFactsArgs(args);
         const facts = await listRoomFacts(parsed);
+        logEvent('info', 'tool.call.success', {
+          tool: name,
+          roomId: parsed.roomId,
+          count: facts.length
+        });
         return {
           content: [
             {
@@ -411,6 +617,10 @@ function createServer() {
         const parsed = parseUpdateFactArgs(args);
         const updated = await updateRoomFact(parsed);
         if (!updated) {
+          logEvent('warn', 'tool.call.not_found', {
+            tool: name,
+            id: parsed.id
+          });
           return {
             content: [
               {
@@ -420,6 +630,11 @@ function createServer() {
             ]
           };
         }
+        logEvent('info', 'tool.call.success', {
+          tool: name,
+          id: updated.id,
+          shortId: updated.shortId
+        });
         return {
           content: [
             {
@@ -433,6 +648,11 @@ function createServer() {
       if (name === 'delete_fact') {
         const parsed = parseDeleteFactArgs(args);
         const deleted = await deleteRoomFact(parsed);
+        logEvent(deleted ? 'info' : 'warn', 'tool.call.success', {
+          tool: name,
+          id: parsed.id,
+          deleted
+        });
         return {
           content: [
             {
@@ -443,6 +663,7 @@ function createServer() {
         };
       }
 
+      logEvent('warn', 'tool.call.unknown', { tool: name });
       return {
         content: [
           {
@@ -453,7 +674,12 @@ function createServer() {
         isError: true
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unexpected error.';
+      const message = errorMessage(error);
+      logEvent('error', 'tool.call.failed', {
+        tool: name,
+        args: summarizeToolArgs(name, args),
+        error: message
+      });
       return {
         content: [
           {
@@ -483,6 +709,10 @@ function apiKeyMiddleware(apiKey: string) {
     const token = headerKey || bearer;
 
     if (!token || token !== apiKey) {
+      logEvent('warn', 'http.auth.unauthorized', {
+        path: req.path,
+        method: req.method
+      });
       res.status(401).json({ error: 'Unauthorized' });
       return;
     }
@@ -495,7 +725,7 @@ async function startStdioServer() {
   const server = createServer();
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('mcp-facts-server running (stdio transport).');
+  logEvent('info', 'server.ready', { transport: 'stdio' });
 }
 
 async function startHttpServer() {
@@ -512,6 +742,14 @@ async function startHttpServer() {
     allowedHosts: allowedHosts.length > 0 ? allowedHosts : undefined
   });
 
+  logEvent('info', 'http.server.config', {
+    host,
+    port,
+    allowedHosts: allowedHosts.length > 0 ? allowedHosts : ['*'],
+    hasApiKey: Boolean(apiKey),
+    logLevel: configuredLogLevel
+  });
+
   if (apiKey) {
     app.use(apiKeyMiddleware(apiKey));
   }
@@ -524,6 +762,13 @@ async function startHttpServer() {
 
   const handlePost = async (req: Request, res: Response) => {
     const sessionId = headerValue(req.headers['mcp-session-id']);
+    const method = typeof req.body?.method === 'string' ? req.body.method : 'unknown';
+
+    logEvent('debug', 'http.request.post', {
+      path: req.path,
+      sessionId: sessionId || null,
+      rpcMethod: method
+    });
 
     try {
       if (sessionId && transports[sessionId]) {
@@ -532,6 +777,10 @@ async function startHttpServer() {
       }
 
       if (!isInitializeRequest(req.body)) {
+        logEvent('warn', 'mcp.session.invalid_request', {
+          reason: 'missing_or_invalid_session_id',
+          rpcMethod: method
+        });
         res.status(400).json({
           jsonrpc: '2.0',
           error: { code: -32000, message: 'Bad Request: No valid session ID provided' },
@@ -547,6 +796,7 @@ async function startHttpServer() {
       transport.onclose = () => {
         const sid = transport.sessionId;
         if (sid && transports[sid]) {
+          logEvent('info', 'mcp.session.closed', { sessionId: sid });
           delete transports[sid];
         }
       };
@@ -558,10 +808,15 @@ async function startHttpServer() {
       const sid = transport.sessionId;
       if (sid) {
         transports[sid] = transport;
+        logEvent('info', 'mcp.session.created', { sessionId: sid });
       }
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error handling MCP POST request:', error);
+      logEvent('error', 'http.request.post_failed', {
+        path: req.path,
+        sessionId: sessionId || null,
+        rpcMethod: method,
+        error: errorMessage(error)
+      });
       if (!res.headersSent) {
         res.status(500).json({
           jsonrpc: '2.0',
@@ -575,23 +830,42 @@ async function startHttpServer() {
   const handleGet = async (req: Request, res: Response) => {
     const sessionId = headerValue(req.headers['mcp-session-id']);
     if (!sessionId || !transports[sessionId]) {
+      logEvent('warn', 'http.request.get_invalid_session', {
+        path: req.path,
+        sessionId: sessionId || null
+      });
       res.status(400).send('Invalid or missing session ID');
       return;
     }
+    logEvent('debug', 'http.request.get', {
+      path: req.path,
+      sessionId
+    });
     await transports[sessionId].handleRequest(req, res);
   };
 
   const handleDelete = async (req: Request, res: Response) => {
     const sessionId = headerValue(req.headers['mcp-session-id']);
     if (!sessionId || !transports[sessionId]) {
+      logEvent('warn', 'http.request.delete_invalid_session', {
+        path: req.path,
+        sessionId: sessionId || null
+      });
       res.status(400).send('Invalid or missing session ID');
       return;
     }
     try {
+      logEvent('debug', 'http.request.delete', {
+        path: req.path,
+        sessionId
+      });
       await transports[sessionId].handleRequest(req, res);
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Error handling MCP DELETE request:', error);
+      logEvent('error', 'http.request.delete_failed', {
+        path: req.path,
+        sessionId,
+        error: errorMessage(error)
+      });
       if (!res.headersSent) {
         res.status(500).send('Error processing session termination');
       }
@@ -604,24 +878,26 @@ async function startHttpServer() {
 
   app.listen(port, host, (error?: Error) => {
     if (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to start HTTP server:', error);
+      logEvent('error', 'http.server.start_failed', { error: errorMessage(error) });
       process.exit(1);
     }
-    // eslint-disable-next-line no-console
-    console.log(`MCP Streamable HTTP server listening on ${host}:${port}/mcp`);
+    logEvent('info', 'server.ready', {
+      transport: 'http',
+      endpoint: `http://${host}:${port}/mcp`
+    });
   });
 
   process.on('SIGINT', async () => {
-    // eslint-disable-next-line no-console
-    console.log('Shutting down MCP HTTP server...');
+    logEvent('info', 'server.shutdown', { signal: 'SIGINT' });
     for (const sessionId of Object.keys(transports)) {
       try {
         await transports[sessionId].close();
         delete transports[sessionId];
       } catch (error) {
-        // eslint-disable-next-line no-console
-        console.error(`Failed to close session ${sessionId}:`, error);
+        logEvent('error', 'mcp.session.close_failed', {
+          sessionId,
+          error: errorMessage(error)
+        });
       }
     }
     process.exit(0);
@@ -630,11 +906,17 @@ async function startHttpServer() {
 
 async function main() {
   const autoMigrate = process.env.FACTS_AUTO_MIGRATE !== 'false';
+  const mode = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
+
+  logEvent('info', 'server.start', {
+    mode,
+    autoMigrate,
+    logLevel: configuredLogLevel
+  });
+
   if (autoMigrate) {
     await ensureRoomFactsSchema();
   }
-
-  const mode = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
 
   if (mode === 'http') {
     await startHttpServer();
@@ -651,7 +933,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  // eslint-disable-next-line no-console
-  console.error('Failed to start MCP server:', error);
+  logEvent('error', 'server.start_failed', {
+    error: errorMessage(error)
+  });
   process.exit(1);
 });

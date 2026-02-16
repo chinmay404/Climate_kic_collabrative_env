@@ -285,6 +285,16 @@ function buildFactsContextBlock(facts: PromptFactRow[]): string {
   ].join('\n');
 }
 
+function buildRoomContextBlock(roomId: string): string {
+  return [
+    '[ROOM_CONTEXT]',
+    `roomId: ${roomId}`,
+    'If you call tools that need roomId, you must pass this exact roomId value.',
+    '[/ROOM_CONTEXT]',
+    ''
+  ].join('\n');
+}
+
 async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
   let roomId = makeRoomId();
   let onyxSessionId: string | null = null;
@@ -626,6 +636,7 @@ export async function POST(request: NextRequest) {
 
     const rolePrefix = `[RESPOND AS: ${effectiveRole}]\n`;
     const userPrefix = `User question: `;
+    const roomContext = buildRoomContextBlock(roomId);
     let factsContext = '';
 
     try {
@@ -637,10 +648,36 @@ export async function POST(request: NextRequest) {
 
     await setRoomAiThinking(roomId, true);
     try {
+      const finalPrompt = `${rolePrefix}${roomContext}${factsContext}${userPrefix}${content}`;
+      console.log(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'info',
+          event: 'chat.send_onyx',
+          roomId,
+          targetRole: effectiveRole,
+          onyxSessionId: runtime.onyxSessionId,
+          factsInjected: Boolean(factsContext),
+          promptLength: finalPrompt.length
+        })
+      );
+
       const result = await sendOnyxMessage(
         onyx,
         runtime.onyxSessionId,
-        `${rolePrefix}${factsContext}${userPrefix}${content}`
+        finalPrompt
+      );
+
+      console.log(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: result.error ? 'warn' : 'info',
+          event: 'chat.onyx_response',
+          roomId,
+          targetRole: effectiveRole,
+          hasAnswer: Boolean(result.answer),
+          onyxError: result.error
+        })
       );
 
       if (result.chatSessionId && result.chatSessionId !== runtime.onyxSessionId) {

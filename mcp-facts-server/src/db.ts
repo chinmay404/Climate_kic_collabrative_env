@@ -2,6 +2,16 @@ import { Pool, type QueryResultRow } from 'pg';
 
 let pool: Pool | null = null;
 
+function dbLog(event: string, data?: Record<string, unknown>) {
+  const payload = {
+    ts: new Date().toISOString(),
+    level: 'info',
+    event,
+    ...(data || {})
+  };
+  console.log(JSON.stringify(payload));
+}
+
 function getDatabaseUrl(): string {
   const value = process.env.DATABASE_URL || process.env.SUPABASE_DATABASE_URL;
   if (!value || !value.trim()) {
@@ -16,15 +26,41 @@ function shouldUseSsl(databaseUrl: string): boolean {
   return databaseUrl.includes('supabase.co') || databaseUrl.includes('supabase.com');
 }
 
+function getDbTarget(databaseUrl: string): string {
+  try {
+    const parsed = new URL(databaseUrl);
+    const port = parsed.port || '5432';
+    return `${parsed.hostname}:${port}${parsed.pathname}`;
+  } catch {
+    return 'invalid-db-url';
+  }
+}
+
 export function getDbPool(): Pool {
   if (!pool) {
     const databaseUrl = getDatabaseUrl();
+    const sslEnabled = shouldUseSsl(databaseUrl);
+    dbLog('db.pool.init', {
+      target: getDbTarget(databaseUrl),
+      sslEnabled
+    });
     pool = new Pool({
       connectionString: databaseUrl,
       max: 6,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
-      ssl: shouldUseSsl(databaseUrl) ? { rejectUnauthorized: false } : false
+      ssl: sslEnabled ? { rejectUnauthorized: false } : false
+    });
+
+    pool.on('error', (error) => {
+      console.error(
+        JSON.stringify({
+          ts: new Date().toISOString(),
+          level: 'error',
+          event: 'db.pool.error',
+          error: error.message
+        })
+      );
     });
   }
   return pool;
@@ -38,6 +74,7 @@ export async function dbQuery<T extends QueryResultRow = QueryResultRow>(
 }
 
 export async function ensureRoomFactsSchema() {
+  dbLog('db.schema.ensure.start');
   await dbQuery('create sequence if not exists public.room_fact_short_seq');
 
   await dbQuery(
@@ -93,4 +130,5 @@ export async function ensureRoomFactsSchema() {
         on public.room_facts (short_id)
     `
   );
+  dbLog('db.schema.ensure.success');
 }

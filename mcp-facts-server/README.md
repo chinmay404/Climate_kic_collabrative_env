@@ -49,6 +49,21 @@ Then use this in your MCP Actions UI:
 
 If you bind to `0.0.0.0`, consider setting `MCP_ALLOWED_HOSTS` (comma-separated) and/or using `MCP_API_KEY`.
 
+### Debug logging
+
+Set `FACTS_LOG_LEVEL=debug` to get structured logs for:
+
+- MCP session lifecycle (`mcp.session.*`)
+- incoming MCP requests (`http.request.*`)
+- tool calls (`tool.call.*`)
+- DB write/list events (`facts.*`, `db.*`)
+
+On Linux/systemd:
+
+```bash
+journalctl -u mcp-facts-server -f
+```
+
 ## Tools
 
 ### `store_fact`
@@ -62,6 +77,9 @@ Input:
 ```
 
 Optional `source` and `createdBy` can be included if you have them.
+`roomId` can be either:
+- the app room ID (`public.rooms.id`)
+- or the linked Onyx session ID (`public.rooms.onyx_session_id`)
 
 ### `list_facts`
 Input:
@@ -114,7 +132,7 @@ FACTS_TEST_ROOM_ID=ROOM-ABC123 npm run verify
   "mcpServers": {
     "facts": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-facts-server/dist/index.js"],
+      "args": ["/absolute/path/to/mcp-facts-server/dist/src/index.js"],
       "env": {
         "DATABASE_URL": "postgresql://...",
         "FACTS_AUTO_MIGRATE": "false"
@@ -136,6 +154,7 @@ MCP_TRANSPORT=http
 MCP_HOST=0.0.0.0
 MCP_PORT=3005
 NODE_OPTIONS=--dns-result-order=ipv4first
+FACTS_LOG_LEVEL=info
 # MCP_API_KEY=change-me
 # MCP_ALLOWED_HOSTS=your-domain.com
 ```
@@ -150,7 +169,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=/home/kic_admin/mcp-facts-server
-ExecStart=/usr/bin/node /home/kic_admin/mcp-facts-server/dist/index.js
+ExecStart=/usr/bin/node /home/kic_admin/mcp-facts-server/dist/src/index.js
 EnvironmentFile=/etc/mcp-facts-server.env
 Restart=always
 RestartSec=3
