@@ -1706,181 +1706,186 @@ export default function ChatPage() {
 
         {/* ── Right Sidebar (toggleable) ─────────────────────────── */}
         {showSidebar && (
-        <aside className="w-80 bg-white border-l border-slate-200 flex-col shrink-0 z-10 flex">
-          <div className="p-4 border-b border-slate-200 bg-slate-50/50">
-            <h2 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2">
-              <Icon name="dashboard" className="text-sm text-navy-700" />
-              Simulation Panel
-            </h2>
-          </div>
-          <div className="flex-1 overflow-y-auto p-4 space-y-6">
-            {/* Active Proposals / Contracts */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-500 uppercase">Active Votes</h3>
-                <button
-                  onClick={() => setShowCreateProposal(true)}
-                  disabled={roomRole !== 'admin'}
-                  title={roomRole === 'admin' ? 'Create vote' : 'Only admins can create votes'}
-                  className="text-sage-600 hover:text-sage-700 disabled:text-slate-300 text-[10px] font-medium"
-                >
-                  + New
-                </button>
-              </div>
-              <div className="space-y-3">
-                {activeProposals.length === 0 && (
-                  <p className="text-[10px] text-slate-400 italic">No active votes</p>
-                )}
-                {activeProposals.map((proposal) => {
-                  const totalVotes = Object.keys(proposal.votes).length;
-                  const myVote = proposal.votes[username];
-                  return (
-                    <div
-                      key={proposal.id}
-                      className="bg-white border border-slate-200 rounded-lg p-3 relative overflow-hidden group hover:border-sage-300 transition-colors"
-                    >
-                      <div className="absolute top-0 left-0 bottom-0 w-1 bg-emerald-500" />
-                      <div className="flex justify-between items-start mb-1">
-                        <span className="text-xs font-semibold text-slate-700">{proposal.title}</span>
-                        <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
-                          {proposal.status === 'active' ? 'Active' : 'Closed'}
-                        </span>
-                      </div>
-                      {proposal.description && (
-                        <p className="text-[10px] text-slate-500 line-clamp-2 mb-2">{proposal.description}</p>
-                      )}
-                      {proposal.status === 'active' && (
-                        <p className="text-[10px] text-slate-400 mb-2">{formatTimeRemaining(proposal)}</p>
-                      )}
-                      {/* Options */}
-                      <div className="space-y-1.5 mt-2">
-                        {proposal.options.map((option) => {
-                          const optionVotes = Object.values(proposal.votes).filter((v) => v === option.id).length;
-                          const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
-                          const isSelected = myVote === option.id;
-                          return (
-                            <button
-                              key={option.id}
-                              onClick={() => handleVote(proposal.id, option.id)}
-                              className={`w-full relative overflow-hidden rounded p-2 text-left transition-all border text-[10px] ${
-                                isSelected
-                                  ? 'border-emerald-500 bg-emerald-50'
-                                  : 'border-slate-200 hover:border-emerald-300 bg-slate-50'
-                              }`}
-                            >
-                              <div
-                                className="absolute inset-0 bg-emerald-200 transition-all"
-                                style={{ width: `${percentage}%`, opacity: 0.3 }}
-                              />
-                              <div className="relative flex justify-between items-center">
-                                <span className={`font-medium ${isSelected ? 'text-emerald-700' : 'text-slate-600'}`}>
-                                  {option.label}
-                                </span>
-                                <span className="text-slate-400">
-                                  {optionVotes} ({percentage}%)
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                      {/* Close vote */}
+          <aside className="w-[23rem] bg-slate-50 border-l border-slate-200 flex-col shrink-0 z-10 flex">
+            <div className="flex-1 overflow-hidden p-3 grid grid-rows-2 gap-3">
+              <section className="min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
+                <div className="px-3 py-2.5 border-b border-slate-200 bg-slate-50/70">
+                  <h2 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <Icon name="dashboard" className="text-sm text-navy-700" />
+                    Simulation Panel
+                  </h2>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-5">
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase">Active Votes</h3>
                       <button
-                        onClick={() => handleCloseVoting(proposal.id)}
-                        disabled={closingProposal === proposal.id || roomRole !== 'admin'}
-                        title={roomRole === 'admin' ? 'Close this vote' : 'Only admins can close votes'}
-                        className="mt-2 w-full text-[10px] py-1 text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={() => setShowCreateProposal(true)}
+                        disabled={roomRole !== 'admin'}
+                        title={roomRole === 'admin' ? 'Create vote' : 'Only admins can create votes'}
+                        className="text-sage-600 hover:text-sage-700 disabled:text-slate-300 text-[10px] font-medium"
                       >
-                        {closingProposal === proposal.id ? 'Closing...' : 'Close Vote'}
+                        + New
                       </button>
                     </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            {/* Verified Facts */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-500 uppercase">Facts</h3>
-                <button
-                  onClick={() => fetchRoomFacts()}
-                  className="text-sage-600 hover:text-sage-700 text-[10px] font-medium"
-                  title="Refresh facts"
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="space-y-2">
-                {factsLoading && roomFacts.length === 0 && (
-                  <p className="text-[10px] text-slate-400 italic">Loading facts...</p>
-                )}
-                {!factsLoading && roomFacts.length === 0 && (
-                  <div className="flex flex-col items-center py-4 text-center">
-                    <Icon name="verified" className="text-2xl text-slate-200 mb-1" />
-                    <p className="text-[10px] text-slate-400 italic">Facts will appear here as the simulation progresses</p>
-                  </div>
-                )}
-                {roomFacts.map((fact) => {
-                  const factId = fact.shortId || fact.id;
-                  const metadata = [fact.createdBy ? `By ${fact.createdBy}` : null, fact.source ? `Source ${fact.source}` : null]
-                    .filter(Boolean)
-                    .join(' • ');
-                  return (
-                    <div key={fact.id} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2">
-                      <p className="text-[9px] text-blue-600 mb-0.5 font-semibold uppercase tracking-wide">{factId}</p>
-                      <p className="text-[10px] font-medium text-blue-900 leading-relaxed">{fact.fact}</p>
-                      {metadata && <p className="mt-1 text-[9px] text-blue-700/80">{metadata}</p>}
+                    <div className="space-y-3">
+                      {activeProposals.length === 0 && (
+                        <p className="text-[10px] text-slate-400 italic">No active votes</p>
+                      )}
+                      {activeProposals.map((proposal) => {
+                        const totalVotes = Object.keys(proposal.votes).length;
+                        const myVote = proposal.votes[username];
+                        return (
+                          <div
+                            key={proposal.id}
+                            className="bg-white border border-slate-200 rounded-lg p-3 relative overflow-hidden group hover:border-sage-300 transition-colors"
+                          >
+                            <div className="absolute top-0 left-0 bottom-0 w-1 bg-emerald-500" />
+                            <div className="flex justify-between items-start mb-1">
+                              <span className="text-xs font-semibold text-slate-700">{proposal.title}</span>
+                              <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">
+                                {proposal.status === 'active' ? 'Active' : 'Closed'}
+                              </span>
+                            </div>
+                            {proposal.description && (
+                              <p className="text-[10px] text-slate-500 line-clamp-2 mb-2">{proposal.description}</p>
+                            )}
+                            {proposal.status === 'active' && (
+                              <p className="text-[10px] text-slate-400 mb-2">{formatTimeRemaining(proposal)}</p>
+                            )}
+                            <div className="space-y-1.5 mt-2">
+                              {proposal.options.map((option) => {
+                                const optionVotes = Object.values(proposal.votes).filter((v) => v === option.id).length;
+                                const percentage = totalVotes > 0 ? Math.round((optionVotes / totalVotes) * 100) : 0;
+                                const isSelected = myVote === option.id;
+                                return (
+                                  <button
+                                    key={option.id}
+                                    onClick={() => handleVote(proposal.id, option.id)}
+                                    className={`w-full relative overflow-hidden rounded p-2 text-left transition-all border text-[10px] ${
+                                      isSelected
+                                        ? 'border-emerald-500 bg-emerald-50'
+                                        : 'border-slate-200 hover:border-emerald-300 bg-slate-50'
+                                    }`}
+                                  >
+                                    <div
+                                      className="absolute inset-0 bg-emerald-200 transition-all"
+                                      style={{ width: `${percentage}%`, opacity: 0.3 }}
+                                    />
+                                    <div className="relative flex justify-between items-center">
+                                      <span className={`font-medium ${isSelected ? 'text-emerald-700' : 'text-slate-600'}`}>
+                                        {option.label}
+                                      </span>
+                                      <span className="text-slate-400">
+                                        {optionVotes} ({percentage}%)
+                                      </span>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <button
+                              onClick={() => handleCloseVoting(proposal.id)}
+                              disabled={closingProposal === proposal.id || roomRole !== 'admin'}
+                              title={roomRole === 'admin' ? 'Close this vote' : 'Only admins can close votes'}
+                              className="mt-2 w-full text-[10px] py-1 text-amber-700 bg-amber-50 border border-amber-200 rounded hover:bg-amber-100 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              {closingProposal === proposal.id ? 'Closing...' : 'Close Vote'}
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
-                  );
-                })}
-              </div>
-            </section>
+                  </section>
 
-            {/* Previous Votes */}
-            <section>
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-bold text-slate-500 uppercase">Previous Votes</h3>
-              </div>
-              <div className="space-y-2">
-                {(() => {
-                  const closed = activeProposals.filter(p => p.status === 'closed');
-                  if (closed.length === 0) {
-                    return <p className="text-[10px] text-slate-400 italic">No completed votes yet</p>;
-                  }
-                  return closed.map((proposal) => {
-                    const totalVotes = Object.keys(proposal.votes).length;
-                    let winnerLabel = 'No votes';
-                    let winnerCount = 0;
-                    if (totalVotes > 0) {
-                      const counts: Record<string, number> = {};
-                      Object.values(proposal.votes).forEach((optId) => { counts[optId] = (counts[optId] || 0) + 1; });
-                      const winnerOptId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
-                      winnerCount = counts[winnerOptId];
-                      const winnerOpt = proposal.options.find(o => o.id === winnerOptId);
-                      winnerLabel = winnerOpt?.label || winnerOptId;
-                    }
+                  <section>
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-xs font-bold text-slate-500 uppercase">Previous Votes</h3>
+                    </div>
+                    <div className="space-y-2">
+                      {(() => {
+                        const closed = activeProposals.filter(p => p.status === 'closed');
+                        if (closed.length === 0) {
+                          return <p className="text-[10px] text-slate-400 italic">No completed votes yet</p>;
+                        }
+                        return closed.map((proposal) => {
+                          const totalVotes = Object.keys(proposal.votes).length;
+                          let winnerLabel = 'No votes';
+                          let winnerCount = 0;
+                          if (totalVotes > 0) {
+                            const counts: Record<string, number> = {};
+                            Object.values(proposal.votes).forEach((optId) => { counts[optId] = (counts[optId] || 0) + 1; });
+                            const winnerOptId = Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+                            winnerCount = counts[winnerOptId];
+                            const winnerOpt = proposal.options.find(o => o.id === winnerOptId);
+                            winnerLabel = winnerOpt?.label || winnerOptId;
+                          }
+                          return (
+                            <div key={proposal.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                              <p className="text-[10px] font-semibold text-slate-700 mb-1">{proposal.title}</p>
+                              <div className="flex items-center gap-1.5">
+                                <Icon name="emoji_events" className="text-xs text-amber-500" />
+                                <span className="text-[10px] font-medium text-slate-600">{winnerLabel}</span>
+                                <span className="text-[10px] text-slate-400">({winnerCount}/{totalVotes} votes)</span>
+                              </div>
+                              {proposal.closedAt && (
+                                <p className="text-[9px] text-slate-400 mt-1">
+                                  Closed {new Date(proposal.closedAt).toLocaleString()}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  </section>
+                </div>
+              </section>
+
+              <section className="min-h-0 bg-white rounded-xl border border-blue-100 shadow-sm flex flex-col">
+                <div className="px-3 py-2.5 border-b border-blue-100 bg-blue-50/40 flex items-center justify-between">
+                  <h2 className="font-bold text-slate-700 text-xs uppercase tracking-wider flex items-center gap-2">
+                    <Icon name="fact_check" className="text-sm text-blue-700" />
+                    Facts Panel
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-slate-400">{roomFacts.length}</span>
+                    <button
+                      onClick={() => fetchRoomFacts()}
+                      className="text-sage-600 hover:text-sage-700 text-[10px] font-medium"
+                      title="Refresh facts"
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {factsLoading && roomFacts.length === 0 && (
+                    <p className="text-[10px] text-slate-400 italic">Loading facts...</p>
+                  )}
+                  {!factsLoading && roomFacts.length === 0 && (
+                    <div className="flex flex-col items-center py-4 text-center">
+                      <Icon name="verified" className="text-2xl text-slate-200 mb-1" />
+                      <p className="text-[10px] text-slate-400 italic">Facts will appear here as the simulation progresses</p>
+                    </div>
+                  )}
+                  {roomFacts.map((fact) => {
+                    const factId = fact.shortId || fact.id;
+                    const metadata = [fact.createdBy ? `By ${fact.createdBy}` : null, fact.source ? `Source ${fact.source}` : null]
+                      .filter(Boolean)
+                      .join(' • ');
                     return (
-                      <div key={proposal.id} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                        <p className="text-[10px] font-semibold text-slate-700 mb-1">{proposal.title}</p>
-                        <div className="flex items-center gap-1.5">
-                          <Icon name="emoji_events" className="text-xs text-amber-500" />
-                          <span className="text-[10px] font-medium text-slate-600">{winnerLabel}</span>
-                          <span className="text-[10px] text-slate-400">({winnerCount}/{totalVotes} votes)</span>
-                        </div>
-                        {proposal.closedAt && (
-                          <p className="text-[9px] text-slate-400 mt-1">
-                            Closed {new Date(proposal.closedAt).toLocaleString()}
-                          </p>
-                        )}
+                      <div key={fact.id} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2">
+                        <p className="text-[9px] text-blue-600 mb-0.5 font-semibold uppercase tracking-wide">{factId}</p>
+                        <p className="text-[10px] font-medium text-blue-900 leading-relaxed">{fact.fact}</p>
+                        {metadata && <p className="mt-1 text-[9px] text-blue-700/80">{metadata}</p>}
                       </div>
                     );
-                  });
-                })()}
-              </div>
-            </section>
-          </div>
-        </aside>
+                  })}
+                </div>
+              </section>
+            </div>
+          </aside>
         )}
       </div>
 
