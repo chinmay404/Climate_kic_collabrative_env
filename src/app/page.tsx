@@ -53,7 +53,6 @@ interface RoomFact {
   source: string | null;
   createdBy: string | null;
   createdAt: string;
-  summary?: string | null;
 }
 
 const defaultProposalOptions = ['Yes', 'No', 'Abstain'];
@@ -1824,14 +1823,14 @@ export default function ChatPage() {
                 )}
                 {roomFacts.map((fact) => {
                   const factId = fact.shortId || fact.id;
-                  const hasSummary = Boolean(fact.summary?.trim());
-                  const content = fact.summary?.trim() || `${factId} | ${fact.fact}`;
+                  const metadata = [fact.createdBy ? `By ${fact.createdBy}` : null, fact.source ? `Source ${fact.source}` : null]
+                    .filter(Boolean)
+                    .join(' • ');
                   return (
                     <div key={fact.id} className="rounded-md border border-blue-200 bg-blue-50 px-2.5 py-2">
-                      {!hasSummary && (
-                        <p className="text-[10px] text-blue-600 mb-0.5 font-semibold">{factId}</p>
-                      )}
-                      <p className="text-[10px] font-medium text-blue-800">{content}</p>
+                      <p className="text-[9px] text-blue-600 mb-0.5 font-semibold uppercase tracking-wide">{factId}</p>
+                      <p className="text-[10px] font-medium text-blue-900 leading-relaxed">{fact.fact}</p>
+                      {metadata && <p className="mt-1 text-[9px] text-blue-700/80">{metadata}</p>}
                     </div>
                   );
                 })}

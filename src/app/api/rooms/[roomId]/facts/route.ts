@@ -103,8 +103,7 @@ export async function GET(request: NextRequest, context: Params) {
       fact: row.fact,
       source: row.source,
       createdBy: row.created_by,
-      createdAt: row.created_at.toISOString(),
-      summary: `${row.short_id || row.id} | ${row.fact}${row.created_by ? ` | by ${row.created_by}` : ''}${row.source ? ` | source ${row.source}` : ''}`
+      createdAt: row.created_at.toISOString()
     }));
 
     return NextResponse.json({
