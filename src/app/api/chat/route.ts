@@ -439,19 +439,27 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const messages = await listLocalMessages(roomId);
+  const before = searchParams.get('before') || undefined;
+  const limit = Math.min(Number(searchParams.get('limit')) || 100, 200);
+  const { messages, hasMore } = await listLocalMessages(roomId, limit, before);
   const proposals = await listProposalsByRoom(roomId, { status: 'active' });
   const participants = await listActiveParticipants(roomId, PARTICIPANT_ACTIVE_MS);
   const typingUsers = getActiveTyping(roomId, getUserDisplayName(auth.context));
 
   return NextResponse.json({
     messages,
+    hasMore,
     aiThinking: roomRuntime.aiThinking,
     typingUsers,
     proposals,
     participants,
     roomTitle: roomRuntime.title,
     roomRole
+  }, {
+    headers: {
+      'Cache-Control': 'private, no-cache, must-revalidate',
+      'X-Message-Count': messages.length.toString()
+    }
   });
 }
 

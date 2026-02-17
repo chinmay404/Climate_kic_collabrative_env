@@ -669,17 +669,33 @@ export async function addLocalMessage(input: {
   return mapLocalMessage(result.rows[0]);
 }
 
-export async function listLocalMessages(roomId: string): Promise<LocalChatMessage[]> {
+export async function listLocalMessages(
+  roomId: string,
+  limit: number = 100,
+  before?: string
+): Promise<{ messages: LocalChatMessage[]; hasMore: boolean }> {
+  const params: unknown[] = [roomId, limit + 1];
+  let whereClause = 'where room_id = $1';
+
+  if (before) {
+    whereClause += ' and created_at < (select created_at from public.messages where id = $3::uuid and room_id = $1)';
+    params.push(before);
+  }
+
   const result = await dbQuery<LocalMessageRow>(
     `
       select id, message_role, content, created_at, sender_name_snapshot, target_role, proposal_id
       from public.messages
-      where room_id = $1
-      order by created_at asc
+      ${whereClause}
+      order by created_at desc
+      limit $2
     `,
-    [roomId]
+    params
   );
-  return result.rows.map(mapLocalMessage);
+
+  const hasMore = result.rows.length > limit;
+  const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
+  return { messages: rows.reverse().map(mapLocalMessage), hasMore };
 }
 
 export async function closeExpiredProposals(roomId: string): Promise<void> {

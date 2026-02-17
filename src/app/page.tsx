@@ -1,9 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 
 // ─── Types ───────────────────────────────────────────────────────────
 interface Message {
@@ -109,10 +110,12 @@ export default function ChatPage() {
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomFacts, setRoomFacts] = useState<RoomFact[]>([]);
   const [factsLoading, setFactsLoading] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
 
-
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
   const lastTypingSentRef = useRef<number>(0);
+  const isAtBottomRef = useRef(true);
 
   const handleSessionExpired = useCallback(() => {
     setJoined(false);
@@ -307,6 +310,7 @@ export default function ChatPage() {
       if (res.ok) {
         const data = await res.json();
         const serverMessages = data.messages || [];
+        setHasMoreMessages(data.hasMore || false);
         setAiThinking(data.aiThinking || false);
         setParticipants(Array.isArray(data.participants) ? data.participants : []);
         if (typeof data.roomTitle === 'string' && data.roomTitle.trim()) {
@@ -327,7 +331,12 @@ export default function ChatPage() {
         setActiveProposals(data.proposals || []);
         setMessages((prev) => {
           if (prev.length !== serverMessages.length) return serverMessages;
-          if (JSON.stringify(prev) !== JSON.stringify(serverMessages)) return serverMessages;
+          if (prev.length === 0) return serverMessages;
+          const prevLast = prev[prev.length - 1];
+          const serverLast = serverMessages[serverMessages.length - 1];
+          if (prevLast?.id !== serverLast?.id || prevLast?.content !== serverLast?.content) {
+            return serverMessages;
+          }
           return prev;
         });
       }
@@ -335,6 +344,29 @@ export default function ChatPage() {
       console.error('Failed to fetch messages', error);
     }
   }, [roomId, username, handleSessionExpired]);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!roomId || loadingOlder || !hasMoreMessages || messages.length === 0) return;
+    setLoadingOlder(true);
+    try {
+      const oldestId = messages[0].id;
+      const res = await fetch(
+        `/api/chat?roomId=${encodeURIComponent(roomId)}&before=${encodeURIComponent(oldestId)}&limit=50`
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const olderMessages = data.messages || [];
+        setHasMoreMessages(data.hasMore || false);
+        if (olderMessages.length > 0) {
+          setMessages((prev) => [...olderMessages, ...prev]);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load older messages', error);
+    } finally {
+      setLoadingOlder(false);
+    }
+  }, [roomId, loadingOlder, hasMoreMessages, messages]);
 
   const fetchMyRooms = useCallback(async () => {
     if (!isLoggedIn) return;
@@ -387,7 +419,7 @@ export default function ChatPage() {
   useEffect(() => {
     if (!joined || !roomId) return;
     fetchMessages();
-    const interval = setInterval(fetchMessages, 1000);
+    const interval = setInterval(fetchMessages, 3000);
     return () => clearInterval(interval);
   }, [joined, roomId, fetchMessages]);
 
@@ -417,21 +449,21 @@ export default function ChatPage() {
     fetchRoomFacts();
     const interval = setInterval(() => {
       fetchRoomFacts({ silent: true }).catch(() => undefined);
-    }, 5000);
+    }, 10000);
     return () => clearInterval(interval);
   }, [joined, roomId, showSidebar, fetchRoomFacts]);
 
 
 
   useEffect(() => {
-    const container = messagesEndRef.current?.parentElement;
-    if (container) {
-      const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
-      const lastMsg = messages[messages.length - 1];
-      const isFromMe = lastMsg?.sender === username;
-      if (isNearBottom || isFromMe || messages.length <= 1) {
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
+    if (messages.length <= 1) {
+      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth' });
+      return;
+    }
+    const lastMsg = messages[messages.length - 1];
+    const isFromMe = lastMsg?.sender === username;
+    if (isAtBottomRef.current || isFromMe) {
+      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth' });
     }
   }, [messages, username]);
 
@@ -1360,9 +1392,9 @@ export default function ChatPage() {
         {/* ── Chat Area ───────────────────────────────────────────── */}
         <main className="flex-1 flex flex-col relative bg-slate-50/30 chat-bg-pattern">
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-6 md:p-8 space-y-8 relative pb-8" id="chat-container">
-            {messages.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-full fade-in-up">
+          {messages.length === 0 ? (
+            <div className="flex-1 flex items-center justify-center p-6 md:p-8" id="chat-container">
+              <div className="flex flex-col items-center justify-center fade-in-up">
                 <div className="relative mb-6">
                   <div className="w-20 h-20 bg-white rounded-2xl shadow-soft border border-slate-200 flex items-center justify-center">
                     <Icon name="forum" className="text-4xl text-slate-300" />
@@ -1395,169 +1427,202 @@ export default function ChatPage() {
                   ))}
                 </div>
               </div>
-            )}
-
-            {messages.map((msg, index) => {
-              const isMe = msg.sender === username;
-              const isAssistant = msg.role === 'assistant';
-              const isSystem = msg.role === 'system';
-
-              // ── System messages ──
-              if (isSystem) {
-                return (
-                  <div key={msg.id} className="flex justify-center py-2">
-                    <div className="bg-slate-100 backdrop-blur-sm rounded-full px-3 py-1 text-[10px] font-medium text-slate-500 flex items-center gap-2 border border-slate-200">
-                      <Icon name="sync" className="text-[12px]" />
-                      {msg.content}
-                    </div>
+            </div>
+          ) : (
+            <Virtuoso
+              ref={virtuosoRef}
+              className="flex-1"
+              style={{ height: '100%' }}
+              data={messages}
+              atBottomStateChange={(atBottom) => { isAtBottomRef.current = atBottom; }}
+              initialTopMostItemIndex={messages.length - 1}
+              followOutput="smooth"
+              increaseViewportBy={{ top: 200, bottom: 200 }}
+              components={{
+                Header: () => (
+                  <div className="px-6 md:px-8 pt-6">
+                    {hasMoreMessages && (
+                      <div className="flex justify-center pb-4">
+                        <button
+                          type="button"
+                          onClick={loadOlderMessages}
+                          disabled={loadingOlder}
+                          className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm hover:bg-slate-50 transition-colors text-xs font-medium text-slate-600 disabled:opacity-50"
+                        >
+                          {loadingOlder ? (
+                            <>
+                              <div className="w-3 h-3 border-2 border-slate-300 border-t-slate-600 rounded-full animate-spin" />
+                              Loading...
+                            </>
+                          ) : (
+                            <>
+                              <Icon name="expand_less" className="text-sm" />
+                              Load older messages
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
                   </div>
-                );
-              }
-
-              // ── User messages (sent by me) ──
-              if (isMe) {
-                const targetPersona = personas.find(p => p.label === msg.targetRole);
-                return (
-                  <div key={msg.id} className="group flex justify-end fade-in-up">
-                    <div className="flex flex-col items-end max-w-2xl w-full">
-                      {/* Sender → Recipient header */}
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <span className="text-xs font-bold text-slate-700">You</span>
-                        <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
-                        {targetPersona ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-4 h-4 rounded ${targetPersona.color} flex items-center justify-center`}>
-                              <Icon name={targetPersona.icon} className="text-[8px] text-white" />
+                ),
+                Footer: () => (
+                  <div className="px-6 md:px-8 pb-8 space-y-8">
+                    {(chatMode === 'ai' ? (loading || aiThinking) : loading) && (
+                      <div className="group relative pt-8">
+                        <div className="flex gap-3">
+                          <div className="shrink-0">
+                            <div className={`w-10 h-10 rounded-xl ${chatMode === 'ai' ? currentPersona.color : 'bg-sage-700'} text-white flex items-center justify-center shadow-lg border border-white/10`}>
+                              <Icon name={chatMode === 'ai' ? currentPersona.icon : 'groups'} className="text-lg" />
                             </div>
-                            <span className="text-xs font-bold text-slate-700">{msg.targetRole}</span>
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-500">Everyone</span>
-                        )}
-                        <span className="text-[10px] text-slate-400 ml-2">
-                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      {/* Bubble */}
-                      <div className="bg-navy-900 text-white p-4 rounded-2xl rounded-tr-sm shadow-soft relative">
-                        <p className="leading-relaxed text-sm">{msg.content}</p>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              // ── Other user messages ──
-              if (!isAssistant && !isMe) {
-                const otherInitials = (msg.sender || 'U').slice(0, 2).toUpperCase();
-                const otherTargetPersona = personas.find(p => p.label === msg.targetRole);
-                return (
-                  <div key={msg.id} className="group flex justify-start fade-in-up">
-                    <div className="flex flex-col items-start max-w-2xl w-full">
-                      {/* Sender → Recipient header */}
-                      <div className="flex items-center gap-2 mb-2 px-1">
-                        <span className="text-xs font-bold text-slate-700">{msg.sender || 'User'}</span>
-                        <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
-                        {otherTargetPersona ? (
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-4 h-4 rounded ${otherTargetPersona.color} flex items-center justify-center`}>
-                              <Icon name={otherTargetPersona.icon} className="text-[8px] text-white" />
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-slate-600 mb-1.5">{chatMode === 'ai' ? targetRole : 'Room Chat'}</span>
+                            <div className="bg-white rounded-xl rounded-tl-sm px-6 py-4 shadow-soft border border-slate-200 flex items-center gap-3">
+                              <div className="flex gap-1.5 h-3 items-center">
+                                <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                                <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                                <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce" />
+                              </div>
+                              <span className="text-xs text-slate-400">{chatMode === 'ai' ? 'is thinking...' : 'sending...'}</span>
                             </div>
-                            <span className="text-xs font-bold text-slate-700">{msg.targetRole}</span>
                           </div>
-                        ) : (
-                          <span className="text-xs text-slate-500">Everyone</span>
-                        )}
-                        <span className="text-[10px] text-slate-400 ml-2">
-                          {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
-                      <div className="flex gap-3">
-                        <div className="w-8 h-8 rounded-full bg-sage-600 flex items-center justify-center text-[10px] text-white font-bold shrink-0 shadow-sm">
-                          {otherInitials}
                         </div>
-                        <div className="bg-white text-slate-800 p-4 rounded-2xl rounded-tl-sm shadow-soft border border-slate-200/80 relative">
+                      </div>
+                    )}
+                  </div>
+                ),
+              }}
+              itemContent={(index, msg) => {
+                const isMe = msg.sender === username;
+                const isAssistant = msg.role === 'assistant';
+                const isSystem = msg.role === 'system';
+
+                // ── System messages ──
+                if (isSystem) {
+                  return (
+                    <div className="flex justify-center py-2 px-6 md:px-8">
+                      <div className="bg-slate-100 backdrop-blur-sm rounded-full px-3 py-1 text-[10px] font-medium text-slate-500 flex items-center gap-2 border border-slate-200">
+                        <Icon name="sync" className="text-[12px]" />
+                        {msg.content}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // ── User messages (sent by me) ──
+                if (isMe) {
+                  const targetPersona = personas.find(p => p.label === msg.targetRole);
+                  return (
+                    <div className="group flex justify-end px-6 md:px-8 pb-8">
+                      <div className="flex flex-col items-end max-w-2xl w-full">
+                        <div className="flex items-center gap-2 mb-2 px-1">
+                          <span className="text-xs font-bold text-slate-700">You</span>
+                          <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
+                          {targetPersona ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-4 h-4 rounded ${targetPersona.color} flex items-center justify-center`}>
+                                <Icon name={targetPersona.icon} className="text-[8px] text-white" />
+                              </div>
+                              <span className="text-xs font-bold text-slate-700">{msg.targetRole}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-500">Everyone</span>
+                          )}
+                          <span className="text-[10px] text-slate-400 ml-2">
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <div className="bg-navy-900 text-white p-4 rounded-2xl rounded-tr-sm shadow-soft relative">
                           <p className="leading-relaxed text-sm">{msg.content}</p>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              }
+                  );
+                }
 
-              // ── Assistant / Character responses ──
-              if (isAssistant) {
-                const character = getRespondingCharacter(index);
-                const charPersona = character.persona;
-                const borderColor = personaBorderColors[character.role] || '#588168';
-                return (
-                  <div key={msg.id} className="group relative fade-in-up">
-                    <div className="flex gap-3">
-                      {/* Character Avatar */}
-                      <div className="shrink-0">
-                        <div className={`w-10 h-10 rounded-xl ${charPersona.color} text-white flex items-center justify-center shadow-lg border border-white/10`}>
-                          <Icon name={charPersona.icon} className="text-lg" />
-                        </div>
-                      </div>
-                      {/* Content */}
-                      <div className="flex flex-col max-w-3xl w-full">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-slate-800">{character.role}</span>
-                            <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
-                            <span className="text-xs text-slate-500">{character.askedBy === username ? 'You' : character.askedBy}</span>
-                            {msg.proposalId && (
-                              <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-sage-100 text-sage-700 border border-sage-200">
-                                VOTE RESPONSE
-                              </span>
-                            )}
-                          </div>
-                          <span className="text-[10px] text-slate-400">
+                // ── Other user messages ──
+                if (!isAssistant && !isMe) {
+                  const otherInitials = (msg.sender || 'U').slice(0, 2).toUpperCase();
+                  const otherTargetPersona = personas.find(p => p.label === msg.targetRole);
+                  return (
+                    <div className="group flex justify-start px-6 md:px-8 pb-8">
+                      <div className="flex flex-col items-start max-w-2xl w-full">
+                        <div className="flex items-center gap-2 mb-2 px-1">
+                          <span className="text-xs font-bold text-slate-700">{msg.sender || 'User'}</span>
+                          <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
+                          {otherTargetPersona ? (
+                            <div className="flex items-center gap-1.5">
+                              <div className={`w-4 h-4 rounded ${otherTargetPersona.color} flex items-center justify-center`}>
+                                <Icon name={otherTargetPersona.icon} className="text-[8px] text-white" />
+                              </div>
+                              <span className="text-xs font-bold text-slate-700">{msg.targetRole}</span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-slate-500">Everyone</span>
+                          )}
+                          <span className="text-[10px] text-slate-400 ml-2">
                             {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                           </span>
                         </div>
-                        <div className="bg-white rounded-xl rounded-tl-sm p-5 shadow-soft border border-slate-200/80" style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}>
-                          <div className="prose prose-sm prose-slate max-w-none break-words text-slate-600 leading-relaxed">
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {msg.content}
-                            </ReactMarkdown>
+                        <div className="flex gap-3">
+                          <div className="w-8 h-8 rounded-full bg-sage-600 flex items-center justify-center text-[10px] text-white font-bold shrink-0 shadow-sm">
+                            {otherInitials}
+                          </div>
+                          <div className="bg-white text-slate-800 p-4 rounded-2xl rounded-tl-sm shadow-soft border border-slate-200/80 relative">
+                            <p className="leading-relaxed text-sm">{msg.content}</p>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                );
-              }
+                  );
+                }
 
-              return null;
-            })}
-
-            {/* Loading / AI Thinking */}
-            {(chatMode === 'ai' ? (loading || aiThinking) : loading) && (
-              <div className="group relative">
-                <div className="flex gap-3">
-                  <div className="shrink-0">
-                    <div className={`w-10 h-10 rounded-xl ${chatMode === 'ai' ? currentPersona.color : 'bg-sage-700'} text-white flex items-center justify-center shadow-lg border border-white/10`}>
-                      <Icon name={chatMode === 'ai' ? currentPersona.icon : 'groups'} className="text-lg" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-xs font-bold text-slate-600 mb-1.5">{chatMode === 'ai' ? targetRole : 'Room Chat'}</span>
-                    <div className="bg-white rounded-xl rounded-tl-sm px-6 py-4 shadow-soft border border-slate-200 flex items-center gap-3">
-                      <div className="flex gap-1.5 h-3 items-center">
-                        <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                        <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                        <div className="w-2 h-2 bg-navy-700 rounded-full animate-bounce" />
+                // ── Assistant / Character responses ──
+                if (isAssistant) {
+                  const character = getRespondingCharacter(index);
+                  const charPersona = character.persona;
+                  const borderColor = personaBorderColors[character.role] || '#588168';
+                  return (
+                    <div className="group relative px-6 md:px-8 pb-8">
+                      <div className="flex gap-3">
+                        <div className="shrink-0">
+                          <div className={`w-10 h-10 rounded-xl ${charPersona.color} text-white flex items-center justify-center shadow-lg border border-white/10`}>
+                            <Icon name={charPersona.icon} className="text-lg" />
+                          </div>
+                        </div>
+                        <div className="flex flex-col max-w-3xl w-full">
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-sm text-slate-800">{character.role}</span>
+                              <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
+                              <span className="text-xs text-slate-500">{character.askedBy === username ? 'You' : character.askedBy}</span>
+                              {msg.proposalId && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-sage-100 text-sage-700 border border-sage-200">
+                                  VOTE RESPONSE
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <div className="bg-white rounded-xl rounded-tl-sm p-5 shadow-soft border border-slate-200/80" style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}>
+                            <div className="prose prose-sm prose-slate max-w-none break-words text-slate-600 leading-relaxed">
+                              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                                {msg.content}
+                              </ReactMarkdown>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                      <span className="text-xs text-slate-400">{chatMode === 'ai' ? 'is thinking...' : 'sending...'}</span>
                     </div>
-                  </div>
-                </div>
-              </div>
-            )}
+                  );
+                }
 
-            <div ref={messagesEndRef} />
-          </div>
+                return null;
+              }}
+            />
+          )}
 
           {/* ── Input Bar ─────────────────────────────────────────── */}
           <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70">
