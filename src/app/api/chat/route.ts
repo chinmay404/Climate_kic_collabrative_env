@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto';
+import { randomUUID, randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireAuthContext, type AuthContext } from '@/lib/auth/server';
 import { dbQuery } from '@/lib/db';
@@ -45,8 +45,24 @@ type PromptFactRow = {
   created_at: Date;
 };
 
-function makeRoomId(): string {
-  return `ROOM-${randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase()}`;
+const ROOM_ID_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 31 chars, no 0/O/1/I/L
+const ROOM_ID_LENGTH = 4;
+
+async function makeRoomId(): Promise<string> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const bytes = randomBytes(ROOM_ID_LENGTH);
+    let id = '';
+    for (let i = 0; i < ROOM_ID_LENGTH; i++) {
+      id += ROOM_ID_CHARS[bytes[i] % ROOM_ID_CHARS.length];
+    }
+    const { rows } = await dbQuery(
+      'SELECT EXISTS(SELECT 1 FROM public.rooms WHERE id = $1) AS exists',
+      [id]
+    );
+    if (!rows[0]?.exists) return id;
+  }
+  // Fallback: use longer ID to guarantee uniqueness
+  return randomUUID().replace(/-/g, '').slice(0, 10).toUpperCase();
 }
 
 function getUserDisplayName(context: AuthContext): string {
@@ -296,7 +312,7 @@ function buildRoomContextBlock(roomId: string): string {
 }
 
 async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
-  let roomId = makeRoomId();
+  let roomId = await makeRoomId();
   let onyxSessionId: string | null = null;
   let openingScene = FALLBACK_OPENING_SCENE;
   let onyxError: string | null = null;
