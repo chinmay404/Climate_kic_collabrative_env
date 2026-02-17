@@ -312,7 +312,7 @@ function buildRoomContextBlock(roomId: string): string {
 }
 
 async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
-  let roomId = await makeRoomId();
+  const roomId = await makeRoomId();
   let onyxSessionId: string | null = null;
   let openingScene = FALLBACK_OPENING_SCENE;
   let onyxError: string | null = null;
@@ -339,7 +339,7 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
         const data = await safeJson(createRes);
         const sessionIdFromOnyx = typeof data?.chat_session_id === 'string' ? data.chat_session_id : null;
         if (sessionIdFromOnyx) {
-          roomId = sessionIdFromOnyx;
+          // Keep the human-friendly room ID stable; track Onyx session separately.
           onyxSessionId = sessionIdFromOnyx;
 
           const sceneResult = await sendOnyxMessage(onyx, sessionIdFromOnyx, OPENING_SCENE_PROMPT);
@@ -500,6 +500,10 @@ export async function DELETE(request: NextRequest) {
 
   await upsertRoomMember({ roomId, userId: auth.context.user.id });
   await touchRoomMemberPresence(roomId, auth.context.user.id);
+  const roomRole = await getRoomMemberRole(roomId, auth.context.user.id);
+  if (roomRole !== 'admin') {
+    return NextResponse.json({ error: 'Only room admins can delete rooms' }, { status: 403 });
+  }
 
   if (roomRuntime.onyxSessionId && onyx.isReady && onyx.base && onyx.apiKey) {
     try {
