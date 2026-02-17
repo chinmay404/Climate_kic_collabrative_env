@@ -1233,122 +1233,114 @@ export default function ChatPage() {
   return (
     <div className="bg-background-light font-sans h-screen flex flex-col overflow-hidden text-text-light transition-colors duration-200">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <header className="bg-card-light border-b border-slate-200 h-14 shrink-0 flex items-center justify-between px-6 z-20 shadow-sm">
-        <div className="flex items-center gap-6">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-navy-900 text-white flex items-center justify-center shadow-sm">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 shrink-0 px-4 md:px-6 py-2.5 z-20 shadow-sm">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-xl bg-navy-900 text-white flex items-center justify-center shadow-sm shrink-0">
               <Icon name="science" className="text-lg" />
             </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-slate-900 text-sm">Climate Sandbox</h1>
-                <span className="text-slate-300">/</span>
-                <span className="font-semibold text-slate-700 text-sm truncate max-w-[200px]">{roomTitle}</span>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <h1 className="font-bold text-slate-900 text-base shrink-0">Climate Sandbox</h1>
+                <span className="text-slate-300 shrink-0">/</span>
+                <span className="font-semibold text-slate-700 text-sm truncate">{roomTitle}</span>
                 {roomRole === 'admin' && (
                   <button
                     onClick={handleRenameRoom}
                     disabled={renamingRoom}
-                    className="ml-1 p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors"
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0"
                     title="Rename Room"
                   >
                     <Icon name="edit" className="text-[14px]" />
                   </button>
                 )}
               </div>
-              <div className="flex items-center gap-2 mt-0.5">
-                <div className="flex items-center gap-1.5 px-1.5 py-0.5 bg-slate-100 rounded border border-slate-200">
+
+              <div className="flex items-center gap-2 mt-1 overflow-x-auto">
+                <div className="flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 rounded-md border border-emerald-200 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[10px] font-medium tracking-wide text-slate-600 uppercase">
-                    Simulation Active
-                  </span>
+                  <span className="text-[10px] font-semibold tracking-wide text-emerald-700 uppercase">Simulation Active</span>
                 </div>
-                <span className="text-slate-300">|</span>
+                <div className="px-2 py-0.5 bg-slate-100 rounded-md border border-slate-200 text-[10px] font-semibold uppercase tracking-wide text-slate-600 shrink-0">
+                  {roomRole}
+                </div>
                 <button
                   onClick={handleCopyRoomId}
-                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200"
+                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200 shrink-0"
                   title="Click to copy Room ID"
                 >
                   <span className="opacity-50">ID:</span> {roomId.slice(0, 8)}...
                   <Icon name="content_copy" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" />
-                  {copiedRoomId && (
-                    <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>
-                  )}
+                  {copiedRoomId && <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>}
                 </button>
               </div>
             </div>
-          </div>
 
-          {/* Participants Section */}
-          <div className="hidden md:flex items-center gap-3 pl-6 border-l border-slate-200 h-8">
-            {/* Stacked Avatars */}
-            <div className="flex -space-x-2">
-              {connectedUsers.slice(0, 5).map((user, idx) => {
-                const isYou = user === username;
-                const userInitials = user.slice(0, 2).toUpperCase();
-                return (
-                  <div
-                    key={user}
-                    className={`w-7 h-7 rounded-full ${getAvatarColor(idx)} border-2 border-white flex items-center justify-center text-[10px] text-white font-bold relative z-[${10 - idx}] transition-transform hover:scale-110 hover:z-20`}
-                    title={isYou ? `${user} (You)` : user}
-                  >
-                    {isYou ? initials : userInitials}
+            <div className="hidden lg:flex items-center gap-3 pl-4 border-l border-slate-200 min-w-[220px]">
+              <div className="flex -space-x-2">
+                {connectedUsers.slice(0, 5).map((user, idx) => {
+                  const isYou = user === username;
+                  const userInitials = user.slice(0, 2).toUpperCase();
+                  return (
+                    <div
+                      key={user}
+                      className={`w-7 h-7 rounded-full ${getAvatarColor(idx)} border-2 border-white flex items-center justify-center text-[10px] text-white font-bold relative transition-transform hover:scale-110`}
+                      style={{ zIndex: 10 - idx }}
+                      title={isYou ? `${user} (You)` : user}
+                    >
+                      {isYou ? initials : userInitials}
+                    </div>
+                  );
+                })}
+                {connectedUsers.length > 5 && (
+                  <div className="w-7 h-7 rounded-full bg-slate-300 border-2 border-white flex items-center justify-center text-[10px] text-slate-600 font-bold">
+                    +{connectedUsers.length - 5}
                   </div>
-                );
-              })}
-              {connectedUsers.length > 5 && (
-                <div className="w-7 h-7 rounded-full bg-slate-300 border-2 border-white flex items-center justify-center text-[10px] text-slate-600 font-bold">
-                  +{connectedUsers.length - 5}
-                </div>
-              )}
-            </div>
-            <span className="text-xs font-medium text-muted-light">{connectedUsers.length} Active</span>
-
-            {/* Typing Indicator */}
-            {typingUserList.length > 0 && (
-              <div className="flex items-center gap-1.5 ml-1 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200">
-                <span className="w-1.5 h-1.5 rounded-full bg-sage-500 typing-pip" />
-                <span className="w-1.5 h-1.5 rounded-full bg-sage-500 typing-pip typing-pip-delay-1" />
-                <span className="w-1.5 h-1.5 rounded-full bg-sage-500 typing-pip typing-pip-delay-2" />
-                <span className="text-[10px] text-muted-light font-medium ml-0.5">
-                  {typingUserList.join(', ')} typing...
-                </span>
+                )}
               </div>
-            )}
+              <div className="flex flex-col leading-tight">
+                <span className="text-xs font-semibold text-slate-700">{connectedUsers.length} Active</span>
+                {typingUserList.length > 0 ? (
+                  <span className="text-[10px] text-slate-500 truncate max-w-[180px]">{typingUserList.join(', ')} typing...</span>
+                ) : (
+                  <span className="text-[10px] text-slate-400">No one typing</span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Right side actions */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSidebar(!showSidebar)}
-            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all border ${
-              showSidebar
-                ? 'bg-navy-900 text-white border-navy-900'
-                : 'bg-white text-slate-500 border-slate-200 hover:text-navy-900 hover:border-slate-300'
-            }`}
-            title={showSidebar ? 'Hide panel' : 'Show panel'}
-          >
-            <Icon name="dashboard" className="text-base" />
-          </button>
-          <button
-            onClick={() => {
-              leaveRoom(roomId);
-              setJoined(false);
-              setMessages([]);
-              setRoomId('');
-              setActiveProposals([]);
-              setRoomFacts([]);
-              setShowSidebar(false);
-              setRoomTitle('Valle Verde Simulation');
-              setRoomRole('member');
-              setChatMode('ai');
-            }}
-            className="w-8 h-8 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
-            title="Exit Simulation"
-          >
-            <Icon name="logout" className="text-base" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={() => setShowSidebar(!showSidebar)}
+              className={`h-9 px-2.5 flex items-center justify-center rounded-lg transition-all border ${
+                showSidebar
+                  ? 'bg-navy-900 text-white border-navy-900'
+                  : 'bg-white text-slate-500 border-slate-200 hover:text-navy-900 hover:border-slate-300'
+              }`}
+              title={showSidebar ? 'Hide panel' : 'Show panel'}
+            >
+              <Icon name="dashboard" className="text-base" />
+            </button>
+            <button
+              onClick={() => {
+                leaveRoom(roomId);
+                setJoined(false);
+                setMessages([]);
+                setRoomId('');
+                setActiveProposals([]);
+                setRoomFacts([]);
+                setShowSidebar(false);
+                setRoomTitle('Valle Verde Simulation');
+                setRoomRole('member');
+                setChatMode('ai');
+              }}
+              className="h-9 px-2.5 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
+              title="Exit Simulation"
+            >
+              <Icon name="logout" className="text-base" />
+            </button>
+          </div>
         </div>
       </header>
 
