@@ -581,6 +581,18 @@ export async function updateRoomTitle(roomId: string, title: string): Promise<vo
   );
 }
 
+export async function deleteRoomById(roomId: string): Promise<boolean> {
+  const result = await dbQuery(
+    `
+      delete from public.rooms
+      where id = $1
+    `,
+    [roomId]
+  );
+
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function isUserRoomMember(roomId: string, userId: string): Promise<boolean> {
   const result = await dbQuery<{ exists: boolean }>(
     `

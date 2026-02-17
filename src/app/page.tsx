@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -106,6 +106,7 @@ export default function ChatPage() {
   const [copiedRoomId, setCopiedRoomId] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [renamingRoom, setRenamingRoom] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [myRooms, setMyRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomFacts, setRoomFacts] = useState<RoomFact[]>([]);
@@ -298,6 +299,22 @@ export default function ChatPage() {
       keepalive: true,
     }).catch(() => undefined);
   }, [roomId]);
+
+  const resetJoinedRoomState = useCallback(() => {
+    setJoined(false);
+    setMessages([]);
+    setRoomId('');
+    setActiveProposals([]);
+    setRoomFacts([]);
+    setShowSidebar(false);
+    setRoomTitle('Valle Verde Simulation');
+    setRoomRole('member');
+    setChatMode('ai');
+    setParticipants([]);
+    setTypingUsers({});
+    setAiThinking(false);
+    setHasMoreMessages(false);
+  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!roomId) return;
@@ -834,6 +851,48 @@ export default function ChatPage() {
     }
   };
 
+  const handleDeleteRoom = useCallback(async (targetRoomId: string) => {
+    if (!targetRoomId || deletingRoomId) return;
+
+    const confirmed = window.confirm(
+      `Delete room ${targetRoomId}? This will permanently remove its messages, votes, and participants.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRoomId(targetRoomId);
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(targetRoomId)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setLastError(data?.error || 'Failed to delete room.');
+        return;
+      }
+
+      if (roomId === targetRoomId) {
+        resetJoinedRoomState();
+      }
+
+      setLastError(
+        typeof data?.onyxDeleteWarning === 'string' && data.onyxDeleteWarning
+          ? data.onyxDeleteWarning
+          : ''
+      );
+      fetchMyRooms();
+    } catch {
+      setLastError('Failed to delete room.');
+    } finally {
+      setDeletingRoomId((current) => (current === targetRoomId ? null : current));
+    }
+  }, [deletingRoomId, fetchMyRooms, handleSessionExpired, resetJoinedRoomState, roomId]);
+
   if (authLoading && !isLoggedIn) {
     return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center">
@@ -1093,16 +1152,28 @@ export default function ChatPage() {
                         <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-100 gap-2">
                           <button
                             onClick={() => joinRoom(room.roomId)}
-                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-colors shadow-sm"
+                            disabled={deletingRoomId === room.roomId}
+                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            Rejoin
+                            {deletingRoomId === room.roomId ? 'Deleting...' : 'Rejoin'}
                           </button>
+                          {room.role === 'admin' && (
+                            <button
+                              onClick={() => handleDeleteRoom(room.roomId)}
+                              disabled={deletingRoomId === room.roomId}
+                              className="px-2.5 py-1.5 border border-rose-200 rounded-md text-rose-500 hover:text-rose-600 hover:border-rose-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              title="Delete Room"
+                            >
+                              <Icon name={deletingRoomId === room.roomId ? 'hourglass_top' : 'delete'} className="text-sm" />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setJoinRoomIdInput(room.roomId);
                               navigator.clipboard.writeText(room.roomId).catch(() => undefined);
                             }}
-                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                            disabled={deletingRoomId === room.roomId}
+                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             title="Copy Room ID"
                           >
                             <Icon name="content_copy" className="text-sm" />
@@ -1259,14 +1330,24 @@ export default function ChatPage() {
                 <span className="text-slate-300 shrink-0">/</span>
                 <span className="font-semibold text-slate-700 text-sm truncate">{roomTitle}</span>
                 {roomRole === 'admin' && (
-                  <button
-                    onClick={handleRenameRoom}
-                    disabled={renamingRoom}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0"
-                    title="Rename Room"
-                  >
-                    <Icon name="edit" className="text-[14px]" />
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRenameRoom}
+                      disabled={renamingRoom || deletingRoomId === roomId}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Rename Room"
+                    >
+                      <Icon name="edit" className="text-[14px]" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRoom(roomId)}
+                      disabled={deletingRoomId === roomId}
+                      className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Delete Room"
+                    >
+                      <Icon name={deletingRoomId === roomId ? 'hourglass_top' : 'delete'} className="text-[14px]" />
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -1338,15 +1419,7 @@ export default function ChatPage() {
             <button
               onClick={() => {
                 leaveRoom(roomId);
-                setJoined(false);
-                setMessages([]);
-                setRoomId('');
-                setActiveProposals([]);
-                setRoomFacts([]);
-                setShowSidebar(false);
-                setRoomTitle('Valle Verde Simulation');
-                setRoomRole('member');
-                setChatMode('ai');
+                resetJoinedRoomState();
               }}
               className="h-9 px-2.5 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
               title="Exit Simulation"
