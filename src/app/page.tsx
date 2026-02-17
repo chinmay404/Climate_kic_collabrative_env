@@ -1006,10 +1006,11 @@ export default function ChatPage() {
                 {/* Join Room Input integrated into Search for convenience, or separate? Let's use it as 'Enter Room ID' */}
                 <input
                   type="text"
-                  placeholder="Enter Room ID to join..."
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-sage-500 focus:border-sage-500 w-64 shadow-sm transition-all"
+                  placeholder="Enter Room ID (e.g. A3F7)"
+                  maxLength={4}
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-sage-500 focus:border-sage-500 w-64 shadow-sm transition-all uppercase"
                   value={joinRoomIdInput}
-                  onChange={(e) => setJoinRoomIdInput(e.target.value)}
+                  onChange={(e) => setJoinRoomIdInput(e.target.value.toUpperCase())}
                   onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                 />
               </div>
@@ -1082,8 +1083,8 @@ export default function ChatPage() {
                             {room.role.toUpperCase()}
                           </span>
                           <h4 className="font-bold text-slate-900 text-lg leading-tight mb-1 line-clamp-2">{room.title}</h4>
-                          <p className="text-xs text-slate-500 font-mono">
-                            ID: {room.roomId.slice(0, 8)}...{room.roomId.slice(-4)}
+                          <p className="text-sm font-semibold text-slate-600 font-mono tracking-wider">
+                            ID: {room.roomId}
                           </p>
                           <p className="text-[11px] text-slate-400 mt-1">
                             Last active {new Date(room.lastSeenAt).toLocaleString()}
@@ -1136,10 +1137,11 @@ export default function ChatPage() {
                    <div className="flex group bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all">
                       <input
                         type="text"
-                        placeholder="Enter Room ID to join..."
-                        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 font-mono text-lg px-4 py-2 placeholder:text-slate-400"
+                        placeholder="Enter Room ID (e.g. A3F7)"
+                        maxLength={4}
+                        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 font-mono text-lg px-4 py-2 placeholder:text-slate-400 uppercase"
                         value={joinRoomIdInput}
-                        onChange={(e) => setJoinRoomIdInput(e.target.value)}
+                        onChange={(e) => setJoinRoomIdInput(e.target.value.toUpperCase())}
                         onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                       />
                       <button
@@ -1278,10 +1280,10 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={handleCopyRoomId}
-                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200 shrink-0"
+                  className="text-sm font-semibold font-mono text-slate-600 hover:text-navy-700 transition-colors flex items-center gap-1.5 group bg-transparent hover:bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 shrink-0 tracking-wider"
                   title="Click to copy Room ID"
                 >
-                  <span className="opacity-50">ID:</span> {roomId.slice(0, 8)}...
+                  <span className="opacity-50">ID:</span> {roomId}
                   <Icon name="content_copy" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" />
                   {copiedRoomId && <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>}
                 </button>

@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { randomBytes } from 'crypto';
 
 // Define the shape of a vote option
 export interface VoteOption {
@@ -100,8 +101,13 @@ function saveDB(db: Database) {
 
 export function createRoom(sessionId: string | null = null): string {
   const db = getDB();
-  // Create a simpler, friendlier ID (e.g., 6 digits)
-  const id = Math.random().toString(36).substring(2, 8).toUpperCase();
+  // 4-char ID from ambiguity-free charset (no 0/O/1/I/L)
+  const SAFE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(4);
+  let id = '';
+  for (let i = 0; i < 4; i++) {
+    id += SAFE_CHARS[bytes[i] % SAFE_CHARS.length];
+  }
   db.rooms[id] = {
     id,
     messages: [],
