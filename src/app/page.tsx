@@ -58,6 +58,16 @@ interface RoomFact {
 
 const defaultProposalOptions = ['Yes', 'No', 'Abstain'];
 
+// ─── Markdown content normalizer ─────────────────────────────────────
+// Converts inline bullets (• or **Key**: val • **Key**: val) into proper markdown lists
+function normalizeMarkdown(raw: string): string {
+  // Replace inline • bullets with newline-separated markdown list items
+  let text = raw.replace(/\s*•\s*/g, '\n- ');
+  // If the string starts with \n- , trim leading newline
+  if (text.startsWith('\n- ')) text = text.slice(1);
+  return text;
+}
+
 // ─── Icon Helper ─────────────────────────────────────────────────────
 function Icon({ name, className = '' }: { name: string; className?: string }) {
   return <span className={`material-icons-round ${className}`}>{name}</span>;
@@ -160,6 +170,27 @@ export default function ChatPage() {
 
   // Helper: determine which character is responding for an assistant message
   const getRespondingCharacter = (msgIndex: number) => {
+    const assistantMsg = messages[msgIndex];
+
+    // Use the targetRole stored on the assistant message itself (set by backend)
+    if (assistantMsg?.targetRole) {
+      const persona = personas.find(p => p.label === assistantMsg.targetRole);
+      // Walk backward only to find who asked
+      let askedBy = 'Someone';
+      for (let i = msgIndex - 1; i >= 0; i--) {
+        if (messages[i].role === 'user' && messages[i].targetRole === assistantMsg.targetRole) {
+          askedBy = messages[i].sender || 'Someone';
+          break;
+        }
+      }
+      return {
+        role: assistantMsg.targetRole,
+        persona: persona || personas[0],
+        askedBy,
+      };
+    }
+
+    // Fallback: walk backward to find the user message this is responding to
     for (let i = msgIndex - 1; i >= 0; i--) {
       if (messages[i].role === 'user' && messages[i].targetRole) {
         const persona = personas.find(p => p.label === messages[i].targetRole);
@@ -1496,8 +1527,8 @@ export default function ChatPage() {
                 if (isMe) {
                   const targetPersona = personas.find(p => p.label === msg.targetRole);
                   return (
-                    <div className="group flex justify-end px-6 md:px-8 pb-8">
-                      <div className="flex flex-col items-end max-w-2xl w-full">
+                    <div className="group flex justify-end px-6 md:px-8 pb-6">
+                      <div className="flex flex-col items-end max-w-3xl w-full">
                         <div className="flex items-center gap-2 mb-2 px-1">
                           <span className="text-xs font-bold text-slate-700">You</span>
                           <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
@@ -1528,8 +1559,8 @@ export default function ChatPage() {
                   const otherInitials = (msg.sender || 'U').slice(0, 2).toUpperCase();
                   const otherTargetPersona = personas.find(p => p.label === msg.targetRole);
                   return (
-                    <div className="group flex justify-start px-6 md:px-8 pb-8">
-                      <div className="flex flex-col items-start max-w-2xl w-full">
+                    <div className="group flex justify-start px-6 md:px-8 pb-6">
+                      <div className="flex flex-col items-start max-w-3xl w-full">
                         <div className="flex items-center gap-2 mb-2 px-1">
                           <span className="text-xs font-bold text-slate-700">{msg.sender || 'User'}</span>
                           <Icon name="arrow_forward" className="text-[10px] text-slate-400" />
@@ -1566,14 +1597,14 @@ export default function ChatPage() {
                   const charPersona = character.persona;
                   const borderColor = personaBorderColors[character.role] || '#588168';
                   return (
-                    <div className="group relative px-6 md:px-8 pb-8">
+                    <div className="group relative px-6 md:px-8 pb-6">
                       <div className="flex gap-3">
                         <div className="shrink-0">
                           <div className={`w-10 h-10 rounded-xl ${charPersona.color} text-white flex items-center justify-center shadow-lg border border-white/10`}>
                             <Icon name={charPersona.icon} className="text-lg" />
                           </div>
                         </div>
-                        <div className="flex flex-col max-w-3xl w-full">
+                        <div className="flex flex-col max-w-5xl w-full">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
                               <span className="font-bold text-sm text-slate-800">{character.role}</span>
@@ -1589,10 +1620,10 @@ export default function ChatPage() {
                               {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
-                          <div className="bg-white rounded-xl rounded-tl-sm p-5 shadow-soft border border-slate-200/80" style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}>
-                            <div className="prose prose-sm prose-slate max-w-none break-words text-slate-600 leading-relaxed">
+                          <div className="bg-white rounded-xl rounded-tl-sm px-6 py-5 shadow-soft border border-slate-200/80" style={{ borderLeftWidth: '3px', borderLeftColor: borderColor }}>
+                            <div className="prose prose-[15px] prose-slate max-w-none break-words text-slate-700 leading-[1.75] prose-headings:text-slate-800 prose-strong:text-slate-800 prose-li:my-1">
                               <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                                {msg.content}
+                                {normalizeMarkdown(msg.content)}
                               </ReactMarkdown>
                             </div>
                           </div>
@@ -1609,7 +1640,7 @@ export default function ChatPage() {
 
           {/* ── Input Bar ─────────────────────────────────────────── */}
           <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70 fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <div className="max-w-4xl mx-auto">
+            <div className="max-w-5xl mx-auto">
               <form onSubmit={sendMessage}>
                 <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-all duration-300 focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
                   <div className="shrink-0 flex flex-col gap-1.5">
