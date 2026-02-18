@@ -1644,10 +1644,11 @@ export default function ChatPage() {
           )}
 
           {/* ── Input Bar (floating) ─────────────────────────────── */}
-          <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-slate-50 from-70% via-slate-50/95 to-transparent pt-6 pb-4 px-5 fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <div className="max-w-5xl mx-auto">
-              <form onSubmit={sendMessage}>
-                <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-all duration-300 focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
+          <div className="absolute bottom-0 left-0 right-0 z-30 pointer-events-none fade-in-up" style={{ animationDelay: '0.2s' }}>
+            <div className="bg-gradient-to-t from-slate-50/90 from-60% to-transparent pt-8 pb-5 px-6 md:px-8">
+              <div className="max-w-4xl mx-auto pointer-events-auto">
+                <form onSubmit={sendMessage}>
+                  <div className="bg-white rounded-2xl shadow-[0_8px_40px_-6px_rgba(0,0,0,0.12),0_0_0_1px_rgba(0,0,0,0.04)] p-1.5 flex items-end gap-1.5 relative transition-all duration-300 focus-within:shadow-[0_8px_50px_-4px_rgba(107,154,126,0.2),0_0_0_1px_rgba(107,154,126,0.2)]">
                   <div className="shrink-0 flex flex-col gap-1.5">
                     <div className="flex items-center gap-1">
                       <button
@@ -1771,10 +1772,11 @@ export default function ChatPage() {
                       <Icon name="arrow_upward" className="text-base" />
                     </button>
                   </div>
+                  </div>
+                </form>
+                <div className="text-center mt-2">
+                  <p className="text-[10px] text-slate-400/60">AI can make mistakes. Verify critical climate data.</p>
                 </div>
-              </form>
-              <div className="text-center mt-2">
-                <p className="text-[10px] text-slate-400/70">AI can make mistakes. Verify critical climate data.</p>
               </div>
             </div>
           </div>
