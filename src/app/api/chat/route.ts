@@ -22,13 +22,13 @@ import {
 
 const OPENING_SCENE_TAG = '[SYSTEM: GENERATE_OPENING_SCENE]';
 const OPENING_SCENE_PROMPT = `${OPENING_SCENE_TAG}
-You are the Narrator for the Climate Sandbox Valle Verde simulation.
+You are the Narrator for the Climate Sandbox Aurindor Basin simulation.
 Generate the opening scene in 3 to 4 sentences.
 Include setting context, the key climate tension, and what decision pressure is about to begin.
 Return only plain scene text with no markdown, no bullets, and no role tags.`;
 
 const FALLBACK_OPENING_SCENE =
-  "Valle Verde gathers under a dry-season sky, with reservoir levels now thin enough to force trade-offs no one can avoid. Farmers, municipal leaders, universities, and businesses have all been called to the same table as water demand rises against shrinking supply. The first decisions made here will shape who gets protection, who absorbs risk, and how trust holds under pressure. Your simulation begins now.";
+  "Aurindor Basin gathers under a dry-season sky, with reservoir levels now thin enough to force trade-offs no one can avoid. Farmers, municipal leaders, universities, and businesses have all been called to the same table as water demand rises against shrinking supply. The first decisions made here will shape who gets protection, who absorbs risk, and how trust holds under pressure. Your simulation begins now.";
 
 const TYPING_TTL_MS = 3000;
 const PARTICIPANT_ACTIVE_MS = 45_000;
@@ -329,7 +329,7 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
           },
           body: JSON.stringify({
             persona_id: onyx.personaId,
-            description: `Valle Verde room created at ${new Date().toISOString()}`
+            description: `Aurindor Basin room created at ${new Date().toISOString()}`
           })
         },
         { retries: 1, timeoutMs: onyx.timeoutMs, retryDelayMs: 300 }

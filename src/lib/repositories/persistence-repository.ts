@@ -279,7 +279,7 @@ export async function createRoomWithAdmin(input: {
         [
           input.roomId,
           input.onyxSessionId || null,
-          input.title || 'Valle Verde Simulation',
+          input.title || 'Aurindor Basin Simulation',
           input.creatorUserId
         ]
       );

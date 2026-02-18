@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -78,7 +78,7 @@ export default function ChatPage() {
   const [roomId, setRoomId] = useState<string>('');
   const [joined, setJoined] = useState(false);
   const [username, setUsername] = useState('');
-  const [roomTitle, setRoomTitle] = useState('Valle Verde Simulation');
+  const [roomTitle, setRoomTitle] = useState('Aurindor Basin Simulation');
   const [roomRole, setRoomRole] = useState<'admin' | 'member'>('member');
   const [chatMode, setChatMode] = useState<'ai' | 'room'>('ai');
 
@@ -106,7 +106,6 @@ export default function ChatPage() {
   const [copiedRoomId, setCopiedRoomId] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [renamingRoom, setRenamingRoom] = useState(false);
-  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [myRooms, setMyRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomFacts, setRoomFacts] = useState<RoomFact[]>([]);
@@ -127,7 +126,7 @@ export default function ChatPage() {
     setTypingUsers({});
     setParticipants([]);
     setMyRooms([]);
-    setRoomTitle('Valle Verde Simulation');
+    setRoomTitle('Aurindor Basin Simulation');
     setRoomRole('member');
     setChatMode('ai');
     setJoinPasswordInput('');
@@ -299,22 +298,6 @@ export default function ChatPage() {
       keepalive: true,
     }).catch(() => undefined);
   }, [roomId]);
-
-  const resetJoinedRoomState = useCallback(() => {
-    setJoined(false);
-    setMessages([]);
-    setRoomId('');
-    setActiveProposals([]);
-    setRoomFacts([]);
-    setShowSidebar(false);
-    setRoomTitle('Valle Verde Simulation');
-    setRoomRole('member');
-    setChatMode('ai');
-    setParticipants([]);
-    setTypingUsers({});
-    setAiThinking(false);
-    setHasMoreMessages(false);
-  }, []);
 
   const fetchMessages = useCallback(async () => {
     if (!roomId) return;
@@ -547,7 +530,7 @@ export default function ChatPage() {
       }
       setRoomFacts([]);
       setRoomId(data.roomId);
-      setRoomTitle(typeof data.roomTitle === 'string' && data.roomTitle.trim() ? data.roomTitle : 'Valle Verde Simulation');
+      setRoomTitle(typeof data.roomTitle === 'string' && data.roomTitle.trim() ? data.roomTitle : 'Aurindor Basin Simulation');
       setRoomRole(data.roomRole === 'admin' ? 'admin' : 'member');
       setChatMode('ai');
       setUsername(userToUse);
@@ -580,7 +563,7 @@ export default function ChatPage() {
       }
       if (res.ok) {
         setRoomId(roomToUse);
-        setRoomTitle('Valle Verde Simulation');
+        setRoomTitle('Aurindor Basin Simulation');
         setRoomRole('member');
         setChatMode('ai');
         setRoomFacts([]);
@@ -851,54 +834,12 @@ export default function ChatPage() {
     }
   };
 
-  const handleDeleteRoom = useCallback(async (targetRoomId: string) => {
-    if (!targetRoomId || deletingRoomId) return;
-
-    const confirmed = window.confirm(
-      `Delete room ${targetRoomId}? This will permanently remove its messages, votes, and participants.`
-    );
-    if (!confirmed) return;
-
-    setDeletingRoomId(targetRoomId);
-    try {
-      const res = await fetch(`/api/rooms/${encodeURIComponent(targetRoomId)}`, {
-        method: 'DELETE'
-      });
-
-      if (res.status === 401) {
-        handleSessionExpired();
-        return;
-      }
-
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        setLastError(data?.error || 'Failed to delete room.');
-        return;
-      }
-
-      if (roomId === targetRoomId) {
-        resetJoinedRoomState();
-      }
-
-      setLastError(
-        typeof data?.onyxDeleteWarning === 'string' && data.onyxDeleteWarning
-          ? data.onyxDeleteWarning
-          : ''
-      );
-      fetchMyRooms();
-    } catch {
-      setLastError('Failed to delete room.');
-    } finally {
-      setDeletingRoomId((current) => (current === targetRoomId ? null : current));
-    }
-  }, [deletingRoomId, fetchMyRooms, handleSessionExpired, resetJoinedRoomState, roomId]);
-
   if (authLoading && !isLoggedIn) {
     return (
       <div className="bg-slate-50 min-h-screen flex items-center justify-center">
-        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm text-slate-600">
-          <span className="h-2.5 w-2.5 rounded-full bg-sage-500 animate-pulse" />
-          Restoring session...
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 py-3.5 shadow-sm text-slate-600 scale-fade-in">
+          <span className="h-2.5 w-2.5 rounded-full bg-sage-500 glow-pulse" />
+          <span className="text-sm">Restoring session...</span>
         </div>
       </div>
     );
@@ -911,15 +852,15 @@ export default function ChatPage() {
     return (
       <div className="bg-slate-50 font-sans min-h-screen flex flex-col items-center justify-center text-slate-600 relative overflow-hidden">
         {/* Background blurs */}
-        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-sage-200/20 rounded-full blur-3xl -translate-y-1/2" />
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-navy-100/30 rounded-full blur-3xl translate-y-1/2" />
+        <div className="absolute inset-0 z-0 pointer-events-none overflow-hidden backdrop-in">
+          <div className="absolute top-0 left-1/4 w-96 h-96 bg-sage-200/20 rounded-full blur-3xl -translate-y-1/2 gentle-float" />
+          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-navy-100/30 rounded-full blur-3xl translate-y-1/2 gentle-float" style={{ animationDelay: '1.5s' }} />
         </div>
 
-        <div className="w-full max-w-md p-6 z-10 relative">
+        <div className="w-full max-w-md p-6 z-10 relative page-enter">
           {/* Logo */}
           <div className="flex flex-col items-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-navy-900 text-white flex items-center justify-center shadow-lg mb-4">
+            <div className="w-12 h-12 rounded-xl bg-navy-900 text-white flex items-center justify-center shadow-lg mb-4 gentle-float">
               <Icon name="science" className="text-2xl" />
             </div>
             <h1 className="text-xl font-bold text-slate-900 tracking-tight">Climate Sandbox</h1>
@@ -927,7 +868,7 @@ export default function ChatPage() {
           </div>
 
           {/* Card */}
-          <div className="bg-white rounded-2xl shadow-float border border-slate-200 p-8">
+          <div className="bg-white rounded-2xl shadow-float border border-slate-200 p-8 scale-fade-in" style={{ animationDelay: '0.15s' }}>
             <form onSubmit={handleLogin} className="space-y-5">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2" htmlFor="username">
@@ -937,7 +878,7 @@ export default function ChatPage() {
                   <input
                     id="username"
                     type="text"
-                    className="block w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 shadow-sm focus:border-navy-700 focus:ring-navy-700 text-sm pl-10 py-2.5 transition-colors"
+                    className="block w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 shadow-sm focus:border-sage-400 focus:ring-sage-400 text-sm pl-10 py-2.5 transition-all duration-300"
                     placeholder="researcher@institute.org"
                     value={joinUsernameInput}
                     onChange={(e) => setJoinUsernameInput(e.target.value)}
@@ -956,7 +897,7 @@ export default function ChatPage() {
                   <input
                     id="password"
                     type="password"
-                    className="block w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 shadow-sm focus:border-navy-700 focus:ring-navy-700 text-sm pl-10 py-2.5 transition-colors"
+                    className="block w-full rounded-lg border border-slate-200 bg-slate-50 text-slate-900 shadow-sm focus:border-sage-400 focus:ring-sage-400 text-sm pl-10 py-2.5 transition-all duration-300"
                     placeholder="••••••••"
                     value={joinPasswordInput}
                     onChange={(e) => setJoinPasswordInput(e.target.value)}
@@ -968,7 +909,7 @@ export default function ChatPage() {
               </div>
 
               {authError && (
-                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700">
+                <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700 fade-in-up">
                   {authError}
                 </div>
               )}
@@ -984,7 +925,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 disabled={authLoading}
-                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 disabled:bg-slate-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition-all duration-200 transform active:scale-[0.98]"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-navy-900 hover:bg-navy-800 disabled:bg-slate-400 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-navy-700 transition-all duration-200 press"
               >
                 {authLoading ? 'Signing in...' : 'Sign In'}
               </button>
@@ -1020,7 +961,7 @@ export default function ChatPage() {
     return (
       <div className="bg-background-light font-sans h-screen flex overflow-hidden text-slate-600">
         {/* Sidebar */}
-        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20">
+        <aside className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 slide-in-left">
           <div className="h-16 flex items-center px-6 border-b border-slate-200 shrink-0">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-navy-900 text-white flex items-center justify-center shadow-sm">
@@ -1055,7 +996,7 @@ export default function ChatPage() {
 
         {/* Main Dashboard Content */}
         <main className="flex-1 flex flex-col relative overflow-hidden bg-slate-50/50">
-          <header className="h-16 flex items-center justify-between px-8 border-b border-slate-200/60 bg-white/50 backdrop-blur-sm sticky top-0 z-10">
+          <header className="h-16 flex items-center justify-between px-8 border-b border-slate-200/60 bg-white/50 backdrop-blur-sm sticky top-0 z-10 slide-down">
             <h2 className="text-lg font-semibold text-slate-800">Dashboard</h2>
             <div className="flex items-center gap-4">
               <div className="relative group">
@@ -1065,11 +1006,10 @@ export default function ChatPage() {
                 {/* Join Room Input integrated into Search for convenience, or separate? Let's use it as 'Enter Room ID' */}
                 <input
                   type="text"
-                  placeholder="Enter Room ID (e.g. A3F7)"
-                  maxLength={4}
-                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-sage-500 focus:border-sage-500 w-64 shadow-sm transition-all uppercase"
+                  placeholder="Enter Room ID to join..."
+                  className="pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-sage-500 focus:border-sage-500 w-64 shadow-sm transition-all"
                   value={joinRoomIdInput}
-                  onChange={(e) => setJoinRoomIdInput(e.target.value.toUpperCase())}
+                  onChange={(e) => setJoinRoomIdInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                 />
               </div>
@@ -1100,7 +1040,7 @@ export default function ChatPage() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 stagger-children">
                   {/* Create New Card */}
                   <button
                     type="button"
@@ -1116,7 +1056,7 @@ export default function ChatPage() {
                       <Icon name={creatingRoom ? 'hourglass_top' : 'add'} className={`text-2xl ${creatingRoom ? 'text-sage-600 animate-pulse' : 'text-slate-400 group-hover:text-sage-600'}`} />
                     </div>
                     <h4 className={`font-semibold text-slate-900 mb-1 ${creatingRoom ? 'text-sage-700' : 'group-hover:text-sage-700'}`}>
-                      {creatingRoom ? 'Preparing Valle Verde...' : 'Create New Simulation'}
+                      {creatingRoom ? 'Preparing Aurindor Basin...' : 'Create New Simulation'}
                     </h4>
                     <p className="text-xs text-center text-slate-500 px-4">
                       {creatingRoom
@@ -1126,14 +1066,18 @@ export default function ChatPage() {
                   </button>
 
                   {roomsLoading && (
-                    <div className="bg-white rounded-xl p-5 shadow-soft border border-slate-200 flex items-center justify-center min-h-[220px]">
-                      <p className="text-sm text-slate-500">Loading your rooms...</p>
+                    <div className="bg-white rounded-xl p-5 shadow-soft border border-slate-200 flex flex-col gap-4 min-h-[220px]">
+                      <div className="h-5 w-16 rounded shimmer" />
+                      <div className="h-6 w-3/4 rounded shimmer" />
+                      <div className="h-4 w-1/2 rounded shimmer" />
+                      <div className="h-4 w-2/3 rounded shimmer" />
+                      <div className="mt-auto h-8 w-full rounded shimmer" />
                     </div>
                   )}
 
                   {!roomsLoading &&
                     myRooms.slice(0, 7).map((room) => (
-                      <div key={room.roomId} className="bg-white rounded-xl p-5 shadow-soft hover:shadow-float border border-slate-200 transition-all flex flex-col h-full relative group">
+                      <div key={room.roomId} className="bg-white rounded-xl p-5 shadow-soft border border-slate-200 flex flex-col h-full relative group hover-lift">
                         <div className="absolute top-5 right-5 flex gap-1">
                           <span className={`w-2 h-2 rounded-full ${room.roomStatus === 'active' ? 'bg-emerald-500' : 'bg-slate-300'}`} />
                         </div>
@@ -1142,8 +1086,8 @@ export default function ChatPage() {
                             {room.role.toUpperCase()}
                           </span>
                           <h4 className="font-bold text-slate-900 text-lg leading-tight mb-1 line-clamp-2">{room.title}</h4>
-                          <p className="text-sm font-semibold text-slate-600 font-mono tracking-wider">
-                            ID: {room.roomId}
+                          <p className="text-xs text-slate-500 font-mono">
+                            ID: {room.roomId.slice(0, 8)}...{room.roomId.slice(-4)}
                           </p>
                           <p className="text-[11px] text-slate-400 mt-1">
                             Last active {new Date(room.lastSeenAt).toLocaleString()}
@@ -1152,28 +1096,16 @@ export default function ChatPage() {
                         <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-100 gap-2">
                           <button
                             onClick={() => joinRoom(room.roomId)}
-                            disabled={deletingRoomId === room.roomId}
-                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-colors shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-all shadow-sm press"
                           >
-                            {deletingRoomId === room.roomId ? 'Deleting...' : 'Rejoin'}
+                            Rejoin
                           </button>
-                          {room.role === 'admin' && (
-                            <button
-                              onClick={() => handleDeleteRoom(room.roomId)}
-                              disabled={deletingRoomId === room.roomId}
-                              className="px-2.5 py-1.5 border border-rose-200 rounded-md text-rose-500 hover:text-rose-600 hover:border-rose-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-                              title="Delete Room"
-                            >
-                              <Icon name={deletingRoomId === room.roomId ? 'hourglass_top' : 'delete'} className="text-sm" />
-                            </button>
-                          )}
                           <button
                             onClick={() => {
                               setJoinRoomIdInput(room.roomId);
                               navigator.clipboard.writeText(room.roomId).catch(() => undefined);
                             }}
-                            disabled={deletingRoomId === room.roomId}
-                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
                             title="Copy Room ID"
                           >
                             <Icon name="content_copy" className="text-sm" />
@@ -1185,7 +1117,7 @@ export default function ChatPage() {
                   {!roomsLoading && myRooms.length === 0 && (
                     <div className="bg-white rounded-xl p-5 shadow-soft border border-slate-200 flex items-center justify-center min-h-[220px]">
                       <p className="text-sm text-slate-500 text-center">
-                        No previous simulations yet. Create your first Valle Verde room.
+                        No previous simulations yet. Create your first Aurindor Basin room.
                       </p>
                     </div>
                   )}
@@ -1193,7 +1125,7 @@ export default function ChatPage() {
               </section>
 
               {/* Join Simulation Section - Replaces Analytics/Invites */}
-              <section className="mt-8 bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 transition-all hover:shadow-md">
+              <section className="mt-8 bg-white rounded-xl border border-slate-200 p-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-8 hover-lift fade-in-up" style={{ animationDelay: '0.3s' }}>
                 <div className="flex-1">
                    <div className="flex items-center gap-3 mb-2">
                       <div className="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center">
@@ -1205,20 +1137,19 @@ export default function ChatPage() {
                 </div>
 
                 <div className="flex-1 w-full max-w-lg">
-                   <div className="flex group bg-slate-50 p-2 rounded-xl border border-slate-200 focus-within:border-indigo-500 focus-within:ring-4 focus-within:ring-indigo-100/50 transition-all">
+                   <div className="flex group bg-slate-50 p-2 rounded-xl border border-slate-200 focus-glow transition-all">
                       <input
                         type="text"
-                        placeholder="Enter Room ID (e.g. A3F7)"
-                        maxLength={4}
-                        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 font-mono text-lg px-4 py-2 placeholder:text-slate-400 uppercase"
+                        placeholder="Enter Room ID to join..."
+                        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-800 font-mono text-lg px-4 py-2 placeholder:text-slate-400"
                         value={joinRoomIdInput}
-                        onChange={(e) => setJoinRoomIdInput(e.target.value.toUpperCase())}
+                        onChange={(e) => setJoinRoomIdInput(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && joinRoom()}
                       />
                       <button
                         onClick={() => joinRoom()}
                         disabled={!joinRoomIdInput.trim()}
-                        className="bg-navy-900 text-white px-8 py-3 rounded-lg font-semibold text-sm hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2 transform active:scale-95"
+                        className="bg-navy-900 text-white px-8 py-3 rounded-lg font-semibold text-sm hover:bg-navy-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center gap-2 press"
                       >
                         Join Session
                         <Icon name="login" className="text-lg" />
@@ -1231,8 +1162,8 @@ export default function ChatPage() {
         </main>
 
         {creatingRoom && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-md px-4">
-            <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 shadow-[0_30px_80px_-20px_rgba(2,6,23,0.45)]">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 backdrop-blur-md px-4 backdrop-in">
+            <div className="relative w-full max-w-2xl overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 shadow-[0_30px_80px_-20px_rgba(2,6,23,0.45)] scale-fade-in">
               <div className="pointer-events-none absolute -left-16 -top-16 h-52 w-52 rounded-full bg-emerald-200/40 blur-3xl" />
               <div className="pointer-events-none absolute -right-10 -bottom-10 h-56 w-56 rounded-full bg-navy-100/70 blur-3xl" />
 
@@ -1241,7 +1172,7 @@ export default function ChatPage() {
                   <div className="relative h-44 md:h-full min-h-[220px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-100 shadow-inner">
                     <Image
                       src="/charcters/Valle_Verde.png"
-                      alt="Valle Verde simulation landscape"
+                      alt="Aurindor Basin simulation landscape"
                       fill
                       priority
                       className="object-cover"
@@ -1249,7 +1180,7 @@ export default function ChatPage() {
                     <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/15 to-transparent" />
                     <div className="absolute left-3 bottom-3">
                       <p className="text-[11px] uppercase tracking-[0.2em] text-slate-200/90">Climate Sandbox</p>
-                      <p className="text-sm font-semibold text-white">Valle Verde</p>
+                      <p className="text-sm font-semibold text-white">Aurindor Basin</p>
                     </div>
                   </div>
                 </div>
@@ -1260,7 +1191,7 @@ export default function ChatPage() {
                     Simulation Booting
                   </div>
 
-                  <h3 className="mt-4 text-2xl font-bold text-slate-900 tracking-tight">Valle Verde is setting up...</h3>
+                  <h3 className="mt-4 text-2xl font-bold text-slate-900 tracking-tight">Aurindor Basin is setting up...</h3>
                   <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     Building the opening scene, loading stakeholders, and preparing your collaborative room.
                   </p>
@@ -1317,7 +1248,7 @@ export default function ChatPage() {
   return (
     <div className="bg-background-light font-sans h-screen flex flex-col overflow-hidden text-text-light transition-colors duration-200">
       {/* ── Header ──────────────────────────────────────────────────── */}
-      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 shrink-0 px-4 md:px-6 py-2.5 z-20 shadow-sm">
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 shrink-0 px-4 md:px-6 py-2.5 z-20 shadow-sm slide-down">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center gap-4 min-w-0 flex-1">
             <div className="w-9 h-9 rounded-xl bg-navy-900 text-white flex items-center justify-center shadow-sm shrink-0">
@@ -1330,24 +1261,14 @@ export default function ChatPage() {
                 <span className="text-slate-300 shrink-0">/</span>
                 <span className="font-semibold text-slate-700 text-sm truncate">{roomTitle}</span>
                 {roomRole === 'admin' && (
-                  <>
-                    <button
-                      onClick={handleRenameRoom}
-                      disabled={renamingRoom || deletingRoomId === roomId}
-                      className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Rename Room"
-                    >
-                      <Icon name="edit" className="text-[14px]" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteRoom(roomId)}
-                      disabled={deletingRoomId === roomId}
-                      className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
-                      title="Delete Room"
-                    >
-                      <Icon name={deletingRoomId === roomId ? 'hourglass_top' : 'delete'} className="text-[14px]" />
-                    </button>
-                  </>
+                  <button
+                    onClick={handleRenameRoom}
+                    disabled={renamingRoom}
+                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0"
+                    title="Rename Room"
+                  >
+                    <Icon name="edit" className="text-[14px]" />
+                  </button>
                 )}
               </div>
 
@@ -1361,10 +1282,10 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={handleCopyRoomId}
-                  className="text-sm font-semibold font-mono text-slate-600 hover:text-navy-700 transition-colors flex items-center gap-1.5 group bg-transparent hover:bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 shrink-0 tracking-wider"
+                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200 shrink-0"
                   title="Click to copy Room ID"
                 >
-                  <span className="opacity-50">ID:</span> {roomId}
+                  <span className="opacity-50">ID:</span> {roomId.slice(0, 8)}...
                   <Icon name="content_copy" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" />
                   {copiedRoomId && <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>}
                 </button>
@@ -1419,7 +1340,15 @@ export default function ChatPage() {
             <button
               onClick={() => {
                 leaveRoom(roomId);
-                resetJoinedRoomState();
+                setJoined(false);
+                setMessages([]);
+                setRoomId('');
+                setActiveProposals([]);
+                setRoomFacts([]);
+                setShowSidebar(false);
+                setRoomTitle('Aurindor Basin Simulation');
+                setRoomRole('member');
+                setChatMode('ai');
               }}
               className="h-9 px-2.5 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
               title="Exit Simulation"
@@ -1448,8 +1377,8 @@ export default function ChatPage() {
           {/* Messages */}
           {messages.length === 0 ? (
             <div className="flex-1 flex items-center justify-center p-6 md:p-8" id="chat-container">
-              <div className="flex flex-col items-center justify-center fade-in-up">
-                <div className="relative mb-6">
+              <div className="flex flex-col items-center justify-center page-enter">
+                <div className="relative mb-6 gentle-float">
                   <div className="w-20 h-20 bg-white rounded-2xl shadow-soft border border-slate-200 flex items-center justify-center">
                     <Icon name="forum" className="text-4xl text-slate-300" />
                   </div>
@@ -1679,10 +1608,10 @@ export default function ChatPage() {
           )}
 
           {/* ── Input Bar ─────────────────────────────────────────── */}
-          <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70">
+          <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70 fade-in-up" style={{ animationDelay: '0.2s' }}>
             <div className="max-w-4xl mx-auto">
               <form onSubmit={sendMessage}>
-                <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-shadow focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
+                <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-all duration-300 focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
                   <div className="shrink-0 flex flex-col gap-1.5">
                     <div className="flex items-center gap-1">
                       <button
@@ -1690,9 +1619,9 @@ export default function ChatPage() {
                         onClick={() => {
                           setChatMode('ai');
                         }}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all duration-200 ${
                           chatMode === 'ai'
-                            ? 'bg-navy-900 text-white border-navy-900'
+                            ? 'bg-navy-900 text-white border-navy-900 shadow-sm'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
@@ -1704,9 +1633,9 @@ export default function ChatPage() {
                           setChatMode('room');
                           setShowAddressingDropdown(false);
                         }}
-                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-colors ${
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all duration-200 ${
                           chatMode === 'room'
-                            ? 'bg-sage-700 text-white border-sage-700'
+                            ? 'bg-sage-700 text-white border-sage-700 shadow-sm'
                             : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
@@ -1797,7 +1726,7 @@ export default function ChatPage() {
                     <button
                       type="submit"
                       disabled={loading || !input.trim()}
-                      className={`h-9 w-9 rounded-xl shadow-sm flex items-center justify-center transition-all active:scale-90 ml-0.5 ${
+                      className={`h-9 w-9 rounded-xl shadow-sm flex items-center justify-center transition-all duration-200 press ml-0.5 ${
                         input.trim()
                           ? 'bg-navy-900 hover:bg-navy-800 text-white shadow-md hover:shadow-lg'
                           : 'bg-slate-100 text-slate-300 cursor-not-allowed'
@@ -1817,7 +1746,7 @@ export default function ChatPage() {
 
         {/* ── Right Sidebar (toggleable) ─────────────────────────── */}
         {showSidebar && (
-          <aside className="w-[23rem] bg-slate-50 border-l border-slate-200 flex-col shrink-0 z-10 flex">
+          <aside className="w-[23rem] bg-slate-50 border-l border-slate-200 flex-col shrink-0 z-10 flex slide-in-right">
             <div className="flex-1 overflow-hidden p-3 grid grid-rows-2 gap-3">
               <section className="min-h-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col">
                 <div className="px-3 py-2.5 border-b border-slate-200 bg-slate-50/70">
@@ -2004,8 +1933,8 @@ export default function ChatPage() {
       {/* VOTE MODAL (matches IDEAL UI 4)                               */}
       {/* ═══════════════════════════════════════════════════════════════ */}
       {showCreateProposal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px]">
-          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 mx-4 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-[2px] backdrop-in">
+          <div className="bg-white w-full max-w-lg rounded-xl shadow-2xl overflow-hidden border border-slate-200 mx-4 flex flex-col max-h-[90vh] scale-fade-in">
             {/* Modal Header */}
             <div className="px-6 py-4 bg-slate-100 border-b border-slate-200 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-3">
