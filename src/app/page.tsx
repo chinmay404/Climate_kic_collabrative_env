@@ -487,14 +487,19 @@ export default function ChatPage() {
 
 
   useEffect(() => {
-    if (messages.length <= 1) {
-      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth' });
-      return;
-    }
+    if (messages.length === 0) return;
     const lastMsg = messages[messages.length - 1];
     const isFromMe = lastMsg?.sender === username;
-    if (isAtBottomRef.current || isFromMe) {
-      virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth' });
+    // Always scroll to bottom for own messages; otherwise only if already near bottom
+    if (isFromMe) {
+      // Small delay so Virtuoso can measure the new item first
+      requestAnimationFrame(() => {
+        virtuosoRef.current?.scrollToIndex({
+          index: messages.length - 1,
+          behavior: 'smooth',
+          align: 'end'
+        });
+      });
     }
   }, [messages, username]);
 
@@ -1404,10 +1409,10 @@ export default function ChatPage() {
       {/* ── Main Content Area ─────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden relative">
         {/* ── Chat Area ───────────────────────────────────────────── */}
-        <main className="flex-1 flex flex-col relative bg-slate-50/30 chat-bg-pattern">
+        <main className="flex-1 relative bg-slate-50/30 chat-bg-pattern">
           {/* Messages */}
           {messages.length === 0 ? (
-            <div className="flex-1 flex items-center justify-center p-6 md:p-8" id="chat-container">
+            <div className="absolute inset-0 flex items-center justify-center p-6 md:p-8" id="chat-container">
               <div className="flex flex-col items-center justify-center page-enter">
                 <div className="relative mb-6 gentle-float">
                   <div className="w-20 h-20 bg-white rounded-2xl shadow-soft border border-slate-200 flex items-center justify-center">
@@ -1445,12 +1450,12 @@ export default function ChatPage() {
           ) : (
             <Virtuoso
               ref={virtuosoRef}
-              className="flex-1"
+              className="absolute inset-0"
               style={{ height: '100%' }}
               data={messages}
               atBottomStateChange={(atBottom) => { isAtBottomRef.current = atBottom; }}
               initialTopMostItemIndex={messages.length - 1}
-              followOutput="smooth"
+              followOutput={(isAtBottom) => isAtBottom ? 'smooth' : false}
               increaseViewportBy={{ top: 200, bottom: 200 }}
               components={{
                 Header: () => (
@@ -1480,7 +1485,7 @@ export default function ChatPage() {
                   </div>
                 ),
                 Footer: () => (
-                  <div className="px-6 md:px-8 pb-8 space-y-8">
+                  <div className="px-6 md:px-8 pb-36 space-y-8">
                     {(chatMode === 'ai' ? (loading || aiThinking) : loading) && (
                       <div className="group relative pt-8">
                         <div className="flex gap-3">
@@ -1638,8 +1643,8 @@ export default function ChatPage() {
             />
           )}
 
-          {/* ── Input Bar ─────────────────────────────────────────── */}
-          <div className="shrink-0 z-30 bg-gradient-to-t from-slate-50 via-slate-50/95 to-transparent pt-4 pb-4 px-5 border-t border-slate-200/70 fade-in-up" style={{ animationDelay: '0.2s' }}>
+          {/* ── Input Bar (floating) ─────────────────────────────── */}
+          <div className="absolute bottom-0 left-0 right-0 z-30 bg-gradient-to-t from-slate-50 from-70% via-slate-50/95 to-transparent pt-6 pb-4 px-5 fade-in-up" style={{ animationDelay: '0.2s' }}>
             <div className="max-w-5xl mx-auto">
               <form onSubmit={sendMessage}>
                 <div className="bg-white rounded-2xl shadow-float border border-slate-200/80 p-1.5 flex items-end gap-1.5 relative ring-1 ring-slate-900/5 transition-all duration-300 focus-within:shadow-lg focus-within:ring-sage-500/20 focus-within:border-sage-300">
