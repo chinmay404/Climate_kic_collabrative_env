@@ -20,6 +20,28 @@ import {
   upsertRoomMember
 } from '@/lib/repositories/persistence-repository';
 
+const DEFAULT_WELCOME_MESSAGE = `**Welcome to the Aurindor Basin Simulation!**
+
+Welcome to an interactive, AI-supported learning sandbox designed to help you bridge the gap between systemic theory and regional practice. You are stepping into the Aurindor Basin, a fictional but realistic region facing the complex crossroads of economic transformation and climate urgency.
+
+**Your Quick-Start Guide**
+
+To get the most out of this capacity-building session, use the following interaction modes:
+
+- **The Narrator:** Type "Narrator" to receive objective context about the region's geography, history, and structural challenges. Use this mode to explore the "world" of the simulation and understand the facts on the ground.
+- **The Characters:** Type the name of a "Character" or stakeholder group (e.g., Farmers' Association or Lythara University) to hear their specific perspectives. Characters may introduce conflicting goals, skepticism, or unique ideas to test your strategies.
+- **Room Chat:** Use the common interface to collaborate with other participants and your facilitator. While the BOT defines the region, your specific Challenge is managed by the facilitator outside the BOT.
+- **Decision Testing:** When your group makes a strategic choice, ask the BOT how the region or specific characters would react. The BOT remembers previous interactions to build a continuous narrative arch.
+
+**Session Details**
+
+- **Exit & Rejoin:** You can exit the simulation at any time by clicking the Exit Icon. To rejoin, simply use the original session link provided by your facilitator.
+- **Availability:** Please note that the BOT is a continuous support tool available only during your active capacity-building session.
+
+Explore the Basin, test your assumptions, and lead Aurindor toward a resilient future!
+
+*— Carla Alvial Palavicino*`;
+
 const OPENING_SCENE_TAG = '[SYSTEM: GENERATE_OPENING_SCENE]';
 const OPENING_SCENE_PROMPT = `${OPENING_SCENE_TAG}
 You are the Narrator for the Climate Sandbox Aurindor Basin simulation.
@@ -366,10 +388,25 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
     creatorUserId: context.user.id
   });
 
+  // 1. Save Carla's static welcome message first
+  await addLocalMessage({
+    roomId,
+    role: 'assistant',
+    content: DEFAULT_WELCOME_MESSAGE,
+    senderName: 'Narrator',
+    targetRole: 'Narrator',
+    source: 'local',
+    metadata: {
+      welcomeMessage: true
+    }
+  });
+
+  // 2. Save the AI-generated opening scene with a title
+  const openingSceneWithTitle = `**Opening Scene**\n\n${openingScene}`;
   const openingSceneMessage = await addLocalMessage({
     roomId,
     role: 'assistant',
-    content: openingScene,
+    content: openingSceneWithTitle,
     senderName: 'Narrator',
     targetRole: 'Narrator',
     source: onyxSessionId ? 'onyx' : 'local',
