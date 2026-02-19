@@ -27,6 +27,24 @@ Generate the opening scene in 3 to 4 sentences.
 Include setting context, the key climate tension, and what decision pressure is about to begin.
 Return only plain scene text with no markdown, no bullets, and no role tags.`;
 
+const WELCOME_MESSAGE = `[SYSTEM: WELCOME_MESSAGE]
+Welcome to the Aurindor Basin Simulation!
+
+Welcome to an interactive, AI-supported learning sandbox designed to help you bridge the gap between systemic theory and regional practice. You are stepping into the Aurindor Basin, a fictional but realistic region facing the complex crossroads of economic transformation and climate urgency.
+
+Your Quick-Start Guide
+To get the most out of this capacity-building session, use the following interaction modes:
+The Narrator: Type "Narrator" to receive objective context about the region's geography, history, and structural challenges. Use this mode to explore the "world" of the simulation and understand the facts on the ground.
+The Characters: Type the name of a "Character" or stakeholder group (e.g., Farmers' Association or Lythara University) to hear their specific perspectives. Characters may introduce conflicting goals, skepticism, or unique ideas to test your strategies.
+Room Chat: Use the common interface to collaborate with other participants and your facilitator. While the BOT defines the region, your specific Challenge is managed by the facilitator outside the BOT.
+Decision Testing: When your group makes a strategic choice, ask the BOT how the region or specific characters would react. The BOT remembers previous interactions to build a continuous narrative arch.
+
+Session Details
+Exit & Rejoin: You can exit the simulation at any time by clicking the Exit Icon. To rejoin, simply use the original session link provided by your facilitator.
+Availability: Please note that the BOT is a continuous support tool available only during your active capacity-building session.
+
+Explore the Basin, test your assumptions, and lead Aurindor toward a resilient future!`;
+
 const FALLBACK_OPENING_SCENE =
   "Aurindor Basin gathers under a dry-season sky, with reservoir levels now thin enough to force trade-offs no one can avoid. Farmers, municipal leaders, universities, and businesses have all been called to the same table as water demand rises against shrinking supply. The first decisions made here will shape who gets protection, who absorbs risk, and how trust holds under pressure. Your simulation begins now.";
 
@@ -395,6 +413,7 @@ async function createRoomFromRequest(context: AuthContext, onyx: OnyxConfig) {
     sessionId: onyxSessionId || roomId,
     roomTitle: createdRoom.title,
     roomRole: 'admin',
+    welcomeMessage: WELCOME_MESSAGE,
     openingScene,
     onyxError
   });
