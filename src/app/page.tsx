@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -57,6 +57,24 @@ interface RoomFact {
 }
 
 const defaultProposalOptions = ['Yes', 'No', 'Abstain'];
+const WELCOME_MESSAGE_TAG = '[SYSTEM: WELCOME_MESSAGE]';
+const DEFAULT_WELCOME_MESSAGE = `${WELCOME_MESSAGE_TAG}
+Welcome to the Aurindor Basin Simulation!
+
+Welcome to an interactive, AI-supported learning sandbox designed to help you bridge the gap between systemic theory and regional practice. You are stepping into the Aurindor Basin, a fictional but realistic region facing the complex crossroads of economic transformation and climate urgency.
+
+Your Quick-Start Guide
+To get the most out of this capacity-building session, use the following interaction modes:
+The Narrator: Type "Narrator" to receive objective context about the region's geography, history, and structural challenges. Use this mode to explore the "world" of the simulation and understand the facts on the ground.
+The Characters: Type the name of a "Character" or stakeholder group (e.g., Farmers' Association or Lythara University) to hear their specific perspectives. Characters may introduce conflicting goals, skepticism, or unique ideas to test your strategies.
+Room Chat: Use the common interface to collaborate with other participants and your facilitator. While the BOT defines the region, your specific Challenge is managed by the facilitator outside the BOT.
+Decision Testing: When your group makes a strategic choice, ask the BOT how the region or specific characters would react. The BOT remembers previous interactions to build a continuous narrative arch.
+
+Session Details
+Exit & Rejoin: You can exit the simulation at any time by clicking the Exit Icon. To rejoin, simply use the original session link provided by your facilitator.
+Availability: Please note that the BOT is a continuous support tool available only during your active capacity-building session.
+
+Explore the Basin, test your assumptions, and lead Aurindor toward a resilient future!`;
 
 // ─── Markdown content normalizer ─────────────────────────────────────
 // Converts inline bullets (• or **Key**: val • **Key**: val) into proper markdown lists
@@ -66,6 +84,10 @@ function normalizeMarkdown(raw: string): string {
   // If the string starts with \n- , trim leading newline
   if (text.startsWith('\n- ')) text = text.slice(1);
   return text;
+}
+
+function filterWelcomeMessages(input: Message[]): Message[] {
+  return input.filter((msg) => !(msg.role === 'assistant' && msg.content.startsWith(WELCOME_MESSAGE_TAG)));
 }
 
 // ─── Icon Helper ─────────────────────────────────────────────────────
@@ -116,12 +138,16 @@ export default function ChatPage() {
   const [copiedRoomId, setCopiedRoomId] = useState(false);
   const [creatingRoom, setCreatingRoom] = useState(false);
   const [renamingRoom, setRenamingRoom] = useState(false);
+  const [deletingRoomId, setDeletingRoomId] = useState<string | null>(null);
   const [myRooms, setMyRooms] = useState<RoomSummary[]>([]);
   const [roomsLoading, setRoomsLoading] = useState(false);
   const [roomFacts, setRoomFacts] = useState<RoomFact[]>([]);
   const [factsLoading, setFactsLoading] = useState(false);
   const [hasMoreMessages, setHasMoreMessages] = useState(false);
   const [loadingOlder, setLoadingOlder] = useState(false);
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+  const [welcomeModalMessage, setWelcomeModalMessage] = useState(DEFAULT_WELCOME_MESSAGE);
+  const [dontShowWelcomeAgain, setDontShowWelcomeAgain] = useState(false);
 
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const lastTypingSentRef = useRef<number>(0);
@@ -139,6 +165,8 @@ export default function ChatPage() {
     setRoomTitle('Aurindor Basin Simulation');
     setRoomRole('member');
     setChatMode('ai');
+    setShowWelcomeModal(false);
+    setDontShowWelcomeAgain(false);
     setJoinPasswordInput('');
     setIsLoggedIn(false);
     setAuthError('Session expired. Please sign in again.');
@@ -330,6 +358,53 @@ export default function ChatPage() {
     }).catch(() => undefined);
   }, [roomId]);
 
+  const resetJoinedRoomState = useCallback(() => {
+    setJoined(false);
+    setMessages([]);
+    setRoomId('');
+    setActiveProposals([]);
+    setRoomFacts([]);
+    setShowSidebar(false);
+    setRoomTitle('Aurindor Basin Simulation');
+    setRoomRole('member');
+    setChatMode('ai');
+    setParticipants([]);
+    setTypingUsers({});
+    setAiThinking(false);
+    setHasMoreMessages(false);
+    setShowWelcomeModal(false);
+    setDontShowWelcomeAgain(false);
+  }, []);
+
+  const getWelcomeSeenKey = useCallback((targetRoomId: string, identity: string) => {
+    return `aurindor_welcome_seen:${identity.trim().toLowerCase()}:${targetRoomId}`;
+  }, []);
+
+  const openWelcomeModal = useCallback(
+    (targetRoomId: string, identity: string, message?: string, force = false) => {
+      if (!targetRoomId || !identity || typeof window === 'undefined') return;
+      const key = getWelcomeSeenKey(targetRoomId, identity);
+      const alreadySeen = window.localStorage.getItem(key) === '1';
+      if (alreadySeen && !force) return;
+
+      setWelcomeModalMessage(
+        typeof message === 'string' && message.trim() ? message.trim() : DEFAULT_WELCOME_MESSAGE
+      );
+      setDontShowWelcomeAgain(false);
+      setShowWelcomeModal(true);
+    },
+    [getWelcomeSeenKey]
+  );
+
+  const closeWelcomeModal = useCallback(() => {
+    const identity = (username || joinUsernameInput).trim();
+    if (dontShowWelcomeAgain && roomId && identity && typeof window !== 'undefined') {
+      window.localStorage.setItem(getWelcomeSeenKey(roomId, identity), '1');
+    }
+    setShowWelcomeModal(false);
+    setDontShowWelcomeAgain(false);
+  }, [dontShowWelcomeAgain, getWelcomeSeenKey, joinUsernameInput, roomId, username]);
+
   const fetchMessages = useCallback(async () => {
     if (!roomId) return;
     try {
@@ -340,7 +415,7 @@ export default function ChatPage() {
       }
       if (res.ok) {
         const data = await res.json();
-        const serverMessages = data.messages || [];
+        const serverMessages = filterWelcomeMessages(Array.isArray(data.messages) ? data.messages : []);
         setHasMoreMessages(data.hasMore || false);
         setAiThinking(data.aiThinking || false);
         setParticipants(Array.isArray(data.participants) ? data.participants : []);
@@ -386,7 +461,7 @@ export default function ChatPage() {
       );
       if (res.ok) {
         const data = await res.json();
-        const olderMessages = data.messages || [];
+        const olderMessages = filterWelcomeMessages(Array.isArray(data.messages) ? data.messages : []);
         setHasMoreMessages(data.hasMore || false);
         if (olderMessages.length > 0) {
           setMessages((prev) => [...olderMessages, ...prev]);
@@ -553,17 +628,18 @@ export default function ChatPage() {
       } else {
         setLastError('');
       }
+      const initialMessages: Message[] = [];
+      const now = Date.now();
       if (typeof data.openingScene === 'string' && data.openingScene.trim()) {
-        setMessages([{
-          id: `opening-scene-${Date.now()}`,
+        initialMessages.push({
+          id: `opening-scene-${now}`,
           role: 'assistant',
           content: data.openingScene.trim(),
-          timestamp: Date.now(),
+          timestamp: now,
           sender: 'Narrator'
-        }]);
-      } else {
-        setMessages([]);
+        });
       }
+      setMessages(initialMessages);
       setRoomFacts([]);
       setRoomId(data.roomId);
       setRoomTitle(typeof data.roomTitle === 'string' && data.roomTitle.trim() ? data.roomTitle : 'Aurindor Basin Simulation');
@@ -571,6 +647,11 @@ export default function ChatPage() {
       setChatMode('ai');
       setUsername(userToUse);
       setJoined(true);
+      openWelcomeModal(
+        data.roomId,
+        userToUse,
+        typeof data.welcomeMessage === 'string' ? data.welcomeMessage : DEFAULT_WELCOME_MESSAGE
+      );
       sendPresence(data.roomId, userToUse);
     } catch {
       setLastError('Failed to create room. Please try again.');
@@ -605,6 +686,7 @@ export default function ChatPage() {
         setRoomFacts([]);
         setUsername(userToUse);
         setJoined(true);
+        openWelcomeModal(roomToUse, userToUse, DEFAULT_WELCOME_MESSAGE);
         setLastError('');
         sendPresence(roomToUse, userToUse);
       } else {
@@ -827,6 +909,8 @@ export default function ChatPage() {
     setUsername('');
     setJoinPasswordInput('');
     setMyRooms([]);
+    setShowWelcomeModal(false);
+    setDontShowWelcomeAgain(false);
     setAuthError('');
     setIsLoggedIn(false);
   };
@@ -869,6 +953,48 @@ export default function ChatPage() {
       setRenamingRoom(false);
     }
   };
+
+  const handleDeleteRoom = useCallback(async (targetRoomId: string) => {
+    if (!targetRoomId || deletingRoomId) return;
+
+    const confirmed = window.confirm(
+      `Delete room ${targetRoomId}? This will permanently remove its messages, votes, and participants.`
+    );
+    if (!confirmed) return;
+
+    setDeletingRoomId(targetRoomId);
+    try {
+      const res = await fetch(`/api/rooms/${encodeURIComponent(targetRoomId)}`, {
+        method: 'DELETE'
+      });
+
+      if (res.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setLastError(data?.error || 'Failed to delete room.');
+        return;
+      }
+
+      if (roomId === targetRoomId) {
+        resetJoinedRoomState();
+      }
+
+      setLastError(
+        typeof data?.onyxDeleteWarning === 'string' && data.onyxDeleteWarning
+          ? data.onyxDeleteWarning
+          : ''
+      );
+      fetchMyRooms();
+    } catch {
+      setLastError('Failed to delete room.');
+    } finally {
+      setDeletingRoomId((current) => (current === targetRoomId ? null : current));
+    }
+  }, [deletingRoomId, fetchMyRooms, handleSessionExpired, resetJoinedRoomState, roomId]);
 
   if (authLoading && !isLoggedIn) {
     return (
@@ -1122,8 +1248,8 @@ export default function ChatPage() {
                             {room.role.toUpperCase()}
                           </span>
                           <h4 className="font-bold text-slate-900 text-lg leading-tight mb-1 line-clamp-2">{room.title}</h4>
-                          <p className="text-xs text-slate-500 font-mono">
-                            ID: {room.roomId.slice(0, 8)}...{room.roomId.slice(-4)}
+                          <p className="text-sm font-semibold text-slate-600 font-mono tracking-wider">
+                            ID: {room.roomId}
                           </p>
                           <p className="text-[11px] text-slate-400 mt-1">
                             Last active {new Date(room.lastSeenAt).toLocaleString()}
@@ -1132,16 +1258,28 @@ export default function ChatPage() {
                         <div className="mt-auto pt-4 flex items-center justify-between border-t border-slate-100 gap-2">
                           <button
                             onClick={() => joinRoom(room.roomId)}
-                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-all shadow-sm press"
+                            disabled={deletingRoomId === room.roomId}
+                            className="flex-1 px-3 py-1.5 bg-navy-900 text-white text-xs font-medium rounded-md hover:bg-navy-800 transition-all shadow-sm press disabled:opacity-60 disabled:cursor-not-allowed"
                           >
-                            Rejoin
+                            {deletingRoomId === room.roomId ? 'Deleting...' : 'Rejoin'}
                           </button>
+                          {room.role === 'admin' && (
+                            <button
+                              onClick={() => handleDeleteRoom(room.roomId)}
+                              disabled={deletingRoomId === room.roomId}
+                              className="px-2.5 py-1.5 border border-rose-200 rounded-md text-rose-500 hover:text-rose-600 hover:border-rose-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                              title="Delete Room"
+                            >
+                              <Icon name={deletingRoomId === room.roomId ? 'hourglass_top' : 'delete'} className="text-sm" />
+                            </button>
+                          )}
                           <button
                             onClick={() => {
                               setJoinRoomIdInput(room.roomId);
                               navigator.clipboard.writeText(room.roomId).catch(() => undefined);
                             }}
-                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors"
+                            disabled={deletingRoomId === room.roomId}
+                            className="px-2.5 py-1.5 border border-slate-200 rounded-md text-slate-500 hover:text-slate-700 hover:border-slate-300 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                             title="Copy Room ID"
                           >
                             <Icon name="content_copy" className="text-sm" />
@@ -1297,14 +1435,24 @@ export default function ChatPage() {
                 <span className="text-slate-300 shrink-0">/</span>
                 <span className="font-semibold text-slate-700 text-sm truncate">{roomTitle}</span>
                 {roomRole === 'admin' && (
-                  <button
-                    onClick={handleRenameRoom}
-                    disabled={renamingRoom}
-                    className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0"
-                    title="Rename Room"
-                  >
-                    <Icon name="edit" className="text-[14px]" />
-                  </button>
+                  <>
+                    <button
+                      onClick={handleRenameRoom}
+                      disabled={renamingRoom || deletingRoomId === roomId}
+                      className="p-1 hover:bg-slate-100 rounded text-slate-400 hover:text-navy-700 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Rename Room"
+                    >
+                      <Icon name="edit" className="text-[14px]" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRoom(roomId)}
+                      disabled={deletingRoomId === roomId}
+                      className="p-1 hover:bg-rose-50 rounded text-slate-400 hover:text-rose-600 transition-colors shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                      title="Delete Room"
+                    >
+                      <Icon name={deletingRoomId === roomId ? 'hourglass_top' : 'delete'} className="text-[14px]" />
+                    </button>
+                  </>
                 )}
               </div>
 
@@ -1318,10 +1466,10 @@ export default function ChatPage() {
                 </div>
                 <button
                   onClick={handleCopyRoomId}
-                  className="text-[10px] font-mono text-slate-500 hover:text-navy-700 transition-colors flex items-center gap-1 group bg-transparent hover:bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200 shrink-0"
+                  className="text-sm font-semibold font-mono text-slate-600 hover:text-navy-700 transition-colors flex items-center gap-1.5 group bg-transparent hover:bg-slate-50 px-2.5 py-1 rounded-md border border-slate-200 shrink-0 tracking-wider"
                   title="Click to copy Room ID"
                 >
-                  <span className="opacity-50">ID:</span> {roomId.slice(0, 8)}...
+                  <span className="opacity-50">ID:</span> {roomId}
                   <Icon name="content_copy" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity" />
                   {copiedRoomId && <span className="ml-1 text-[10px] font-sans text-emerald-600 font-medium">Copied</span>}
                 </button>
@@ -1363,6 +1511,16 @@ export default function ChatPage() {
 
           <div className="flex items-center gap-2 shrink-0">
             <button
+              onClick={() => {
+                const identity = username || joinUsernameInput || 'participant';
+                openWelcomeModal(roomId, identity, welcomeModalMessage, true);
+              }}
+              className="h-9 px-3 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-navy-900 hover:border-slate-300 transition-all"
+              title="Session Guide"
+            >
+              <Icon name="menu_book" className="text-base" />
+            </button>
+            <button
               onClick={() => setShowSidebar(!showSidebar)}
               className={`h-9 px-2.5 flex items-center justify-center rounded-lg transition-all border ${
                 showSidebar
@@ -1376,15 +1534,7 @@ export default function ChatPage() {
             <button
               onClick={() => {
                 leaveRoom(roomId);
-                setJoined(false);
-                setMessages([]);
-                setRoomId('');
-                setActiveProposals([]);
-                setRoomFacts([]);
-                setShowSidebar(false);
-                setRoomTitle('Aurindor Basin Simulation');
-                setRoomRole('member');
-                setChatMode('ai');
+                resetJoinedRoomState();
               }}
               className="h-9 px-2.5 flex items-center justify-center rounded-lg bg-white text-slate-500 border border-slate-200 hover:text-rose-600 hover:border-rose-300 transition-all"
               title="Exit Simulation"
@@ -1394,6 +1544,91 @@ export default function ChatPage() {
           </div>
         </div>
       </header>
+
+      {showWelcomeModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 backdrop-blur-sm px-4">
+          <div className="relative w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_30px_80px_-20px_rgba(2,6,23,0.45)]">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-sage-600 via-teal-500 to-indigo-500" />
+            <div className="p-6 md:p-8">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{WELCOME_MESSAGE_TAG}</p>
+                  <h2 className="mt-2 text-2xl font-bold text-slate-900">Welcome to the Aurindor Basin Simulation</h2>
+                  <p className="mt-2 text-sm text-slate-600 max-w-3xl">
+                    Interactive capacity-building sandbox where you can test systemic strategies and stakeholder trade-offs in a realistic regional scenario.
+                  </p>
+                </div>
+                <button
+                  onClick={closeWelcomeModal}
+                  className="rounded-lg border border-slate-200 p-1.5 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition-colors"
+                  title="Close"
+                >
+                  <Icon name="close" className="text-base" />
+                </button>
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-xl border border-sage-200 bg-sage-50 p-4">
+                  <div className="flex items-center gap-2 text-sage-800 font-semibold text-sm">
+                    <Icon name="auto_stories" className="text-base" />
+                    The Narrator
+                  </div>
+                  <p className="mt-2 text-xs text-sage-900/80">Ask for objective context about geography, history, and structural challenges.</p>
+                </div>
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                  <div className="flex items-center gap-2 text-indigo-800 font-semibold text-sm">
+                    <Icon name="groups" className="text-base" />
+                    The Characters
+                  </div>
+                  <p className="mt-2 text-xs text-indigo-900/80">Address stakeholder groups directly to surface competing goals and constraints.</p>
+                </div>
+                <div className="rounded-xl border border-teal-200 bg-teal-50 p-4">
+                  <div className="flex items-center gap-2 text-teal-800 font-semibold text-sm">
+                    <Icon name="forum" className="text-base" />
+                    Room Chat
+                  </div>
+                  <p className="mt-2 text-xs text-teal-900/80">Collaborate with participants while your facilitator frames the challenge externally.</p>
+                </div>
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                  <div className="flex items-center gap-2 text-amber-800 font-semibold text-sm">
+                    <Icon name="account_tree" className="text-base" />
+                    Decision Testing
+                  </div>
+                  <p className="mt-2 text-xs text-amber-900/80">Probe consequences of your strategic choices and iterate as the narrative evolves.</p>
+                </div>
+              </div>
+
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <h3 className="text-sm font-semibold text-slate-800">Session Details</h3>
+                <p className="mt-2 text-xs text-slate-600">Exit and rejoin anytime using your room link. BOT support is available during active sessions.</p>
+              </div>
+
+              <div className="mt-5 max-h-40 overflow-y-auto rounded-xl border border-slate-200 p-4 bg-white">
+                <p className="text-xs leading-relaxed text-slate-600 whitespace-pre-line">{welcomeModalMessage}</p>
+              </div>
+
+              <div className="mt-5 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <label className="inline-flex items-center gap-2 text-xs text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={dontShowWelcomeAgain}
+                    onChange={(e) => setDontShowWelcomeAgain(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-navy-900 focus:ring-navy-700"
+                  />
+                  Don&apos;t show again for this room
+                </label>
+                <button
+                  onClick={closeWelcomeModal}
+                  className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg bg-navy-900 text-white text-sm font-semibold hover:bg-navy-800 transition-colors"
+                >
+                  Start Simulation
+                  <Icon name="arrow_forward" className="text-sm" />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── Error Banner ──────────────────────────────────────────── */}
       {lastError && (
