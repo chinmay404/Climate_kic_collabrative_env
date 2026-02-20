@@ -668,6 +668,7 @@ export async function POST(request: NextRequest) {
         targetRole: effectiveRole,
         source: 'system',
         metadata: {
+          askedBy: senderName,
           reason: !runtime.onyxSessionId ? 'missing_onyx_session' : 'onyx_not_configured'
         }
       });
@@ -738,6 +739,7 @@ export async function POST(request: NextRequest) {
         targetRole: effectiveRole,
         source: result.answer ? 'onyx' : 'system',
         metadata: {
+          askedBy: senderName,
           onyxError: result.error
         }
       });

@@ -15,6 +15,7 @@ interface Message {
   sender?: string;
   proposalId?: string;
   targetRole?: string;
+  askedBy?: string;
 }
 
 interface VoteOption {
@@ -202,18 +203,20 @@ export default function ChatPage() {
     // Use the targetRole stored on the assistant message itself (set by backend)
     if (assistantMsg?.targetRole) {
       const persona = personas.find(p => p.label === assistantMsg.targetRole);
-      // Walk backward only to find who asked
-      let askedBy = 'Someone';
-      for (let i = msgIndex - 1; i >= 0; i--) {
-        if (messages[i].role === 'user' && messages[i].targetRole === assistantMsg.targetRole) {
-          askedBy = messages[i].sender || 'Someone';
-          break;
+      // Prefer explicit per-response attribution to avoid race conditions with concurrent users.
+      let askedBy = assistantMsg.askedBy || '';
+      if (!askedBy) {
+        for (let i = msgIndex - 1; i >= 0; i--) {
+          if (messages[i].role === 'user' && messages[i].targetRole === assistantMsg.targetRole) {
+            askedBy = messages[i].sender || 'Someone';
+            break;
+          }
         }
       }
       return {
         role: assistantMsg.targetRole,
         persona: persona || personas[0],
-        askedBy,
+        askedBy: askedBy || 'Someone',
       };
     }
 
