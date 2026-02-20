@@ -76,6 +76,7 @@ type LocalMessageRow = {
   sender_name_snapshot: string | null;
   target_role: string | null;
   proposal_id: string | null;
+  metadata: unknown;
 };
 
 type ProposalBaseRow = {
@@ -120,6 +121,7 @@ export type LocalChatMessage = {
   sender?: string;
   targetRole?: string;
   proposalId?: string;
+  askedBy?: string;
 };
 
 export type ProposalOptionView = {
@@ -447,6 +449,8 @@ export async function listRoomAuditLogs(
 }
 
 function mapLocalMessage(row: LocalMessageRow): LocalChatMessage {
+  const metadata = toMetadata(row.metadata);
+  const askedBy = typeof metadata.askedBy === 'string' ? metadata.askedBy : undefined;
   return {
     id: row.id,
     role: row.message_role,
@@ -454,7 +458,8 @@ function mapLocalMessage(row: LocalMessageRow): LocalChatMessage {
     timestamp: row.created_at.getTime(),
     sender: row.sender_name_snapshot || undefined,
     targetRole: row.target_role || undefined,
-    proposalId: row.proposal_id || undefined
+    proposalId: row.proposal_id || undefined,
+    askedBy
   };
 }
 
@@ -663,7 +668,7 @@ export async function addLocalMessage(input: {
         metadata
       )
       values ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb)
-      returning id, message_role, content, created_at, sender_name_snapshot, target_role, proposal_id
+      returning id, message_role, content, created_at, sender_name_snapshot, target_role, proposal_id, metadata
     `,
     [
       input.roomId,
@@ -697,6 +702,7 @@ export async function listLocalMessages(
   const result = await dbQuery<LocalMessageRow>(
     `
       select id, message_role, content, created_at, sender_name_snapshot, target_role, proposal_id
+      , metadata
       from public.messages
       ${whereClause}
       order by created_at desc

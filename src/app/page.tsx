@@ -15,6 +15,7 @@ interface Message {
   sender?: string;
   proposalId?: string;
   targetRole?: string;
+  askedBy?: string;
 }
 
 interface VoteOption {
@@ -57,9 +58,8 @@ interface RoomFact {
 }
 
 const defaultProposalOptions = ['Yes', 'No', 'Abstain'];
-const WELCOME_MESSAGE_TAG = '[SYSTEM: WELCOME_MESSAGE]';
-const DEFAULT_WELCOME_MESSAGE = `${WELCOME_MESSAGE_TAG}
-Welcome to the Aurindor Basin Simulation!
+const LEGACY_WELCOME_MESSAGE_TAG = '[SYSTEM: WELCOME_MESSAGE]';
+const DEFAULT_WELCOME_MESSAGE = `Welcome to the Aurindor Basin Simulation!
 
 Welcome to an interactive, AI-supported learning sandbox designed to help you bridge the gap between systemic theory and regional practice. You are stepping into the Aurindor Basin, a fictional but realistic region facing the complex crossroads of economic transformation and climate urgency.
 
@@ -87,7 +87,7 @@ function normalizeMarkdown(raw: string): string {
 }
 
 function filterWelcomeMessages(input: Message[]): Message[] {
-  return input.filter((msg) => !(msg.role === 'assistant' && msg.content.startsWith(WELCOME_MESSAGE_TAG)));
+  return input.filter((msg) => !(msg.role === 'assistant' && msg.content.startsWith(LEGACY_WELCOME_MESSAGE_TAG)));
 }
 
 // ─── Icon Helper ─────────────────────────────────────────────────────
@@ -203,18 +203,20 @@ export default function ChatPage() {
     // Use the targetRole stored on the assistant message itself (set by backend)
     if (assistantMsg?.targetRole) {
       const persona = personas.find(p => p.label === assistantMsg.targetRole);
-      // Walk backward only to find who asked
-      let askedBy = 'Someone';
-      for (let i = msgIndex - 1; i >= 0; i--) {
-        if (messages[i].role === 'user' && messages[i].targetRole === assistantMsg.targetRole) {
-          askedBy = messages[i].sender || 'Someone';
-          break;
+      // Prefer explicit per-response attribution to avoid race conditions with concurrent users.
+      let askedBy = assistantMsg.askedBy || '';
+      if (!askedBy) {
+        for (let i = msgIndex - 1; i >= 0; i--) {
+          if (messages[i].role === 'user' && messages[i].targetRole === assistantMsg.targetRole) {
+            askedBy = messages[i].sender || 'Someone';
+            break;
+          }
         }
       }
       return {
         role: assistantMsg.targetRole,
         persona: persona || personas[0],
-        askedBy,
+        askedBy: askedBy || 'Someone',
       };
     }
 
@@ -1552,7 +1554,7 @@ export default function ChatPage() {
             <div className="p-6 md:p-8">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{WELCOME_MESSAGE_TAG}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Session Guide</p>
                   <h2 className="mt-2 text-2xl font-bold text-slate-900">Welcome to the Aurindor Basin Simulation</h2>
                   <p className="mt-2 text-sm text-slate-600 max-w-3xl">
                     Interactive capacity-building sandbox where you can test systemic strategies and stakeholder trade-offs in a realistic regional scenario.

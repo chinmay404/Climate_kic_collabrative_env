@@ -49,8 +49,7 @@ Generate the opening scene in 3 to 4 sentences.
 Include setting context, the key climate tension, and what decision pressure is about to begin.
 Return only plain scene text with no markdown, no bullets, and no role tags.`;
 
-const WELCOME_MESSAGE = `[SYSTEM: WELCOME_MESSAGE]
-Welcome to the Aurindor Basin Simulation!
+const WELCOME_MESSAGE = `Welcome to the Aurindor Basin Simulation!
 
 Welcome to an interactive, AI-supported learning sandbox designed to help you bridge the gap between systemic theory and regional practice. You are stepping into the Aurindor Basin, a fictional but realistic region facing the complex crossroads of economic transformation and climate urgency.
 
@@ -706,6 +705,7 @@ export async function POST(request: NextRequest) {
         targetRole: effectiveRole,
         source: 'system',
         metadata: {
+          askedBy: senderName,
           reason: !runtime.onyxSessionId ? 'missing_onyx_session' : 'onyx_not_configured'
         }
       });
@@ -776,6 +776,7 @@ export async function POST(request: NextRequest) {
         targetRole: effectiveRole,
         source: result.answer ? 'onyx' : 'system',
         metadata: {
+          askedBy: senderName,
           onyxError: result.error
         }
       });
